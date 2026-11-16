@@ -347,6 +347,10 @@ It opens at http://127.0.0.1:8501 and works **only on this computer** (usage sta
 
 **Desktop icon (Windows):** `vjh shortcut` puts a **Job Hunter AI** icon on your Desktop. Double-click it to open the dashboard (it runs in a minimised window; close that window to stop it). Remove it with `vjh shortcut --remove`.
 
+**Job titles are links:** click a title in any table or card to open the job ad (where you apply). A 🔎 in front means no link is stored, so it opens a web search for that job instead.
+
+**Two people on one computer:** use two separate copies of this folder. Each copy needs its own `dashboard: port` (e.g. 8501 and 8502) and `dashboard: title` (this also names the Desktop icon), its own `database: path` and its own `automation: task_name` in `config/settings.yaml`.
+
 **Quick actions:** in the job and application tables, tick one or more rows at the left edge. Buttons appear to open the job, rate it (👍 good match / 👎 not for me, with a reason), mark it as applied (only after you really sent it; a follow-up reminder is set) or change its status.
 
 Pages:

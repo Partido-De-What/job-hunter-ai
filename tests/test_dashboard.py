@@ -193,9 +193,10 @@ def test_shortcut_install_uses_powershell_and_draws_icon(tmp_path, monkeypatch):
     monkeypatch.setattr(shortcut, "_powershell", fake_ps)
     monkeypatch.setattr(shortcut, "vjh_executable", lambda: Path(r"C:\proj\.venv\Scripts\vjh.exe"))
     monkeypatch.setattr(sys, "platform", "win32")
-    out = shortcut.install(tmp_path / "proj", tmp_path / "data")
+    out = shortcut.install(tmp_path / "proj", tmp_path / "data", "Job Hunter AI")
     assert out.endswith("Job Hunter AI.lnk")
     env = calls[0]
+    assert env["VJH_LNK_NAME"] == "Job Hunter AI.lnk" and shortcut.link_name('a/b: "c"') == "a-b- -c-.lnk"
     assert env["VJH_LNK_TARGET"].endswith("vjh.exe") and env["VJH_LNK_DIR"] == str(tmp_path / "proj")
     assert (tmp_path / "data" / "vjh.ico").stat().st_size > 0
 
@@ -226,3 +227,15 @@ def test_board_and_table_views_render(app_env):
     assert not at.exception
     at = _run("Progress")
     assert at.metric[2].value == "1"                                     # applications sent
+
+
+def test_titles_link_to_the_ad_or_a_search():
+    import re
+    show = lambda u: re.match(data.TITLE_LINK_DISPLAY, u).group(1)  # noqa: E731
+    u = data.title_link("https://jobs.example.org/123", "Lab Technician (m/w/d)", "Acme")
+    assert u.startswith("https://jobs.example.org/123#") and show(u) == "Lab Technician (m/w/d)"
+    s = data.title_link("", "QC Analyst", "Pharma AG")
+    assert s.startswith("https://www.google.com/search?q=QC+Analyst+Pharma+AG#") and show(s) == "🔎 QC Analyst"
+    assert data.title_link("javascript:alert(1)", "X", "Y").startswith("https://www.google.com/")   # never a script link
+    assert data.title_link("https://a.example/#/job/7", "T", "E") == "https://a.example/#/job/7"     # hash routes kept
+    assert data.md_link("A [b]", "https://x.example/1", "E") == "[A (b)](<https://x.example/1>)"

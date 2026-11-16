@@ -20,8 +20,6 @@ from vjh.db import migrate
 from vjh.db.tables import GeneratedDocumentRow
 from vjh.models.common import ApplicationStatus, ApprovalStatus
 
-st.set_page_config(page_title="Job Hunter", page_icon="🌱", layout="wide")
-
 PAGES = ["Overview", "Progress", "Jobs", "Job details", "Applications", "Documents", "Sources", "Logs & errors",
          "Feedback", "Import a job"]
 APP_STATUSES = [s.value for s in ApplicationStatus]
@@ -41,6 +39,7 @@ def _engine(db_path: str):
 
 
 cfg = _cfg()
+st.set_page_config(page_title=cfg.settings.dashboard.title, page_icon="🌱", layout="wide")
 if migrate.current_revision(cfg.db_path) != migrate.head_revision():
     st.error("The database is missing or out of date. In PowerShell run: `vjh init`, then reload this page.")
     st.stop()
@@ -57,7 +56,7 @@ def open_job(job_id: int) -> None:
 
 
 # ---------------- sidebar ----------------
-st.sidebar.title("🌱 Job Hunter")
+st.sidebar.title(f"🌱 {cfg.settings.dashboard.title}")
 page = st.sidebar.radio("Page", PAGES, key="page")
 st.sidebar.caption("Local only (127.0.0.1). Nothing is sent to employers.")
 if st.sidebar.button("Reload data"):
@@ -130,12 +129,19 @@ def _job_table(df: pd.DataFrame, key: str) -> None:
                "application", "salary", "deadline", "source"]].copy()
     view["category"] = view["category"].map(lambda c: CATEGORY_LABEL.get(c, c))
     view["ineligible"] = view["ineligible"].map(lambda b: "⚠️ mandatory not met" if b else "")
+    view["title"] = [data.title_link(u, t, e) for u, t, e in zip(df["url"], df["title"], df["employer"], strict=True)]
     event = st.dataframe(view, hide_index=True, on_select="rerun", selection_mode="multi-row", key=f"{key}_tbl",
                          column_config={"score": st.column_config.ProgressColumn("score", min_value=0,
                                                                                  max_value=100, format="%.0f"),
-                                        "ineligible": st.column_config.TextColumn("eligibility")})
+                                        "ineligible": st.column_config.TextColumn("eligibility"),
+                                        "title": TITLE_LINK})
     picked = [int(view.iloc[i]["id"]) for i in event.selection.rows] if event else []
     _quick_actions(picked, key)
+
+
+TITLE_LINK = st.column_config.LinkColumn(
+    "title", display_text=data.TITLE_LINK_DISPLAY,
+    help="Click a title to open the job ad (where you apply). 🔎 = no link stored: a web search instead.")
 
 
 def _quick_actions(picked: list[int], key: str) -> None:
@@ -229,8 +235,9 @@ def page_job_details() -> None:
         return
     j, ev, ai, app = d["job"], d["evaluation"], d["ai"], d["application"]
     st.subheader(f"#{j.id} {j.title}")
-    st.write(f"**{j.employer}** · {j.location or 'location not stated'} · source: {j.source}"
-             + (f" · [open the ad]({j.url})" if j.url else ""))
+    st.markdown(f"**{j.employer}** · {j.location or 'location not stated'} · source: {j.source} · "
+                + data.md_link("open the ad ↗" if data.is_web_url(j.url) else "search for the ad 🔎",
+                               j.url, j.employer, search_title=j.title))
     c = st.columns([1, 3])
     c[0].metric("Score", f"{ev.overall_score:.0f}" if ev else "-")
     c[1].markdown(
@@ -448,8 +455,10 @@ def page_applications() -> None:
     if view == "Board":
         _board(df)
         return
-    event = st.dataframe(df, hide_index=True, on_select="rerun", selection_mode="multi-row", key="apps_tbl",
-                         column_config={"score": st.column_config.ProgressColumn("score", min_value=0,
+    table = df.drop(columns=["url"]).assign(
+        title=[data.title_link(u, t, e) for u, t, e in zip(df["url"], df["title"], df["employer"], strict=True)])
+    event = st.dataframe(table, hide_index=True, on_select="rerun", selection_mode="multi-row", key="apps_tbl",
+                         column_config={"title": TITLE_LINK, "score": st.column_config.ProgressColumn("score", min_value=0,
                                                                                  max_value=100, format="%.0f")})
     _quick_actions([int(df.iloc[i]["job"]) for i in event.selection.rows] if event else [], "apps")
 
@@ -468,7 +477,7 @@ def _board(df: pd.DataFrame) -> None:
         col.markdown(f"**{title}** · {len(part)}")
         for r in part.head(BOARD_MAX_CARDS).itertuples():
             with col.container(border=True):
-                st.markdown(f"**#{r.job}** {r.title[:55]}")
+                st.markdown(f"**#{r.job}** {data.md_link(r.title[:55], r.url, r.employer)}")
                 bits = [r.employer[:35]]
                 if pd.notna(r.score):
                     bits.append(f"score {r.score:.0f}")

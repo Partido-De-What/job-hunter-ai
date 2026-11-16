@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import quote_plus
 
 import pandas as pd
 from sqlalchemy import func, select
@@ -37,6 +38,34 @@ def guess_language(text: str) -> str:
     if de + en < 5:
         return "unknown"
     return "de" if de > en else "en"
+
+
+# Job titles as links to the ad. The title travels in the link's #fragment so the table can show it
+# (Streamlit LinkColumn shows the first regex group). Links that already use a #fragment are left alone.
+TITLE_LINK_DISPLAY = r"^[^#]*#(.+)$"
+
+
+def is_web_url(url: str | None) -> bool:
+    return bool(url) and url.strip().lower().startswith(("http://", "https://"))
+
+
+def ad_url(url: str | None, title: str, employer: str) -> str:
+    """The ad's own address, or a web search for title + employer when none is stored (or it is not http/https)."""
+    if is_web_url(url):
+        return url.strip()
+    return "https://www.google.com/search?q=" + quote_plus(f"{title} {employer}".strip())
+
+
+def title_link(url: str | None, title: str, employer: str) -> str:
+    u = ad_url(url, title, employer)
+    label = title if is_web_url(url) else f"🔎 {title}"
+    return u if "#" in u else f"{u}#{label}"
+
+
+def md_link(text: str, url: str | None, employer: str, search_title: str | None = None) -> str:
+    u = ad_url(url, search_title or text, employer)
+    safe = text.replace("[", "(").replace("]", ")")
+    return f"[{safe}](<{u}>)"
 
 
 def salary_text(raw: dict | None) -> str:
@@ -164,9 +193,9 @@ def applications_frame(session: Session) -> pd.DataFrame:
         rows.append({"job": a.job_id, "status": a.status, "title": j.title, "employer": j.employer,
                      "score": ev.overall_score if ev else None, "deadline": j.deadline,
                      "applied": a.date_submitted, "follow_up": a.follow_up_date,
-                     "interview": a.interview_date, "response": a.employer_response or ""})
+                     "interview": a.interview_date, "response": a.employer_response or "", "url": j.url or ""})
     return pd.DataFrame(rows, columns=["job", "status", "title", "employer", "score", "deadline", "applied",
-                                       "follow_up", "interview", "response"])
+                                       "follow_up", "interview", "response", "url"])
 
 
 STALE_DAYS = 2

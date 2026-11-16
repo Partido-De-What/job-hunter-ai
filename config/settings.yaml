@@ -125,6 +125,10 @@ automation:
   log_retention_days: 90           # delete run logs (data/logs) older than this; nothing else is deleted
   db_backups_keep: 10              # keep the newest N database backups (vjh.db.bak-*)
 
+dashboard:
+  title: "Job Hunter AI"            # browser tab, sidebar and Desktop icon name
+  port: 8501                       # a second copy of the program on this computer needs another port (e.g. 8502)
+
 progress:
   weekly_application_goal: 5       # dashboard "Progress" page: applications you aim to send per week (0 = no goal)
 

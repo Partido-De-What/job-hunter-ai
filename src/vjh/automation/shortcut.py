@@ -6,11 +6,10 @@ running, it just opens the browser again (see cli_track.cmd_dashboard)."""
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
-
-SHORTCUT_NAME = "Job Hunter AI.lnk"
 
 # Paths come in through environment variables, so no quoting problems with spaces.
 _CREATE = r"""
@@ -21,7 +20,7 @@ $s.TargetPath = $env:VJH_LNK_TARGET
 $s.Arguments = 'dashboard'
 $s.WorkingDirectory = $env:VJH_LNK_DIR
 $s.WindowStyle = 7
-$s.Description = 'Open the Job Hunter AI dashboard'
+$s.Description = 'Open the job hunter dashboard'
 if ($env:VJH_LNK_ICON) { $s.IconLocation = $env:VJH_LNK_ICON }
 $s.Save()
 Write-Output $path
@@ -31,6 +30,12 @@ _REMOVE = r"""
 $path = Join-Path ([Environment]::GetFolderPath('Desktop')) $env:VJH_LNK_NAME
 if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path; Write-Output $path }
 """
+
+
+def link_name(title: str) -> str:
+    """'<title>.lnk' without characters Windows forbids in file names."""
+    clean = re.sub(r'[<>:"/\|?*]', "-", title).strip(" .") or "Job Hunter"
+    return f"{clean}.lnk"
 
 
 def vjh_executable() -> Path:
@@ -68,15 +73,15 @@ def _powershell(script: str, env: dict[str, str]) -> str:
     return out.stdout.strip()
 
 
-def install(root: Path, icon_dir: Path) -> str:
+def install(root: Path, icon_dir: Path, title: str) -> str:
     if sys.platform != "win32":
         raise RuntimeError("desktop shortcuts are only supported on Windows")
     icon = make_icon(icon_dir / "vjh.ico")
-    return _powershell(_CREATE, {"VJH_LNK_NAME": SHORTCUT_NAME, "VJH_LNK_TARGET": str(vjh_executable()),
+    return _powershell(_CREATE, {"VJH_LNK_NAME": link_name(title), "VJH_LNK_TARGET": str(vjh_executable()),
                                  "VJH_LNK_DIR": str(root), "VJH_LNK_ICON": str(icon) if icon else ""})
 
 
-def remove() -> str:
+def remove(title: str) -> str:
     if sys.platform != "win32":
         raise RuntimeError("desktop shortcuts are only supported on Windows")
-    return _powershell(_REMOVE, {"VJH_LNK_NAME": SHORTCUT_NAME})
+    return _powershell(_REMOVE, {"VJH_LNK_NAME": link_name(title)})

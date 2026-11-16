@@ -150,6 +150,11 @@ class AutomationSettings(_Strict):
     db_backups_keep: int = Field(default=10, ge=1)       # newest database backups kept
 
 
+class DashboardSettings(_Strict):
+    title: str = "Job Hunter AI"      # browser tab, sidebar and Desktop icon name
+    port: int = Field(default=8501, ge=1024, le=65535)   # each copy on this computer needs its own port
+
+
 class ProgressSettings(_Strict):
     weekly_application_goal: int = Field(default=5, ge=0, le=100)   # dashboard Progress page; 0 = no goal
 
@@ -165,3 +170,4 @@ class Settings(_Strict):
     collection: CollectionSettings = CollectionSettings()
     automation: AutomationSettings = AutomationSettings()
     progress: ProgressSettings = ProgressSettings()
+    dashboard: DashboardSettings = DashboardSettings()

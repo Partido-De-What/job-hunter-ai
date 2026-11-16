@@ -52,8 +52,8 @@ def add_parsers(sub) -> None:
     fs.add_parser("report", help="Patterns in your feedback, with suggestions (changes nothing)")
 
     d = sub.add_parser("dashboard", help="Open the local dashboard in your browser")
-    d.add_argument("--port", type=int, default=8501)
-    sc = sub.add_parser("shortcut", help="Put a 'Job Hunter AI' icon on your Desktop that opens the dashboard")
+    d.add_argument("--port", type=int, default=None, help="Default: dashboard.port in config/settings.yaml")
+    sc = sub.add_parser("shortcut", help="Put an icon on your Desktop that opens the dashboard (named after dashboard.title)")
     sc.add_argument("--remove", action="store_true", help="Remove the Desktop icon")
 
 
@@ -68,10 +68,10 @@ def cmd_shortcut(cfg: AppConfig, remove: bool) -> int:
     from .automation import shortcut
     try:
         if remove:
-            path = shortcut.remove()
+            path = shortcut.remove(cfg.settings.dashboard.title)
             _ok(f"Removed {path}" if path else "There was no Desktop icon to remove.")
         else:
-            path = shortcut.install(cfg.root, cfg.data_dir)
+            path = shortcut.install(cfg.root, cfg.data_dir, cfg.settings.dashboard.title)
             _ok(f"Desktop icon created: {path}")
             print("  Double-click it to open the dashboard. A minimised window keeps it running;\n"
                   "  close that window (taskbar) to stop it. Remove the icon with: vjh shortcut --remove")
@@ -230,7 +230,7 @@ def dispatch(cfg: AppConfig, args) -> int | None:
         if migrate.current_revision(cfg.db_path) != migrate.head_revision():
             _fail("Database missing or out of date. Run: vjh init")
             return 1
-        return cmd_dashboard(cfg, args.port)
+        return cmd_dashboard(cfg, args.port or cfg.settings.dashboard.port)
     if args.command not in ("track", "feedback"):
         return None
     if migrate.current_revision(cfg.db_path) != migrate.head_revision():
