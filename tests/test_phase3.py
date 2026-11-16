@@ -312,3 +312,20 @@ def test_dry_run_calls_nothing(setup):
     engine, profile = setup
     res = evaluate_jobs(engine, SETTINGS, profile, None, dry_run=True, now=NOW)
     assert res.pending == 2 and res.run_id is None
+
+
+def test_language_rules_follow_the_cefr_level():
+    from vjh.llm.prompts import language_rules
+    from vjh.models.profile import LanguageSkill
+
+    def rule(level, **kw):
+        p = MasterProfile.model_validate({"profile_version": 1, "personal": {"full_name": "T"}, "experiences": [],
+                                          "education": [], "languages": [], "evidence": []})
+        p.languages = [LanguageSkill(language="English", level=level, **kw)]
+        return language_rules(p)
+    a2, b2 = rule("A2"), rule("B2")
+    c1 = rule("C1", certified=True, certificate="Cambridge English: C1 Advanced")
+    assert "'fluent'" in a2 and '"not_met"' in a2
+    assert "'fluent'" in b2 and "'good' is met" in b2
+    assert "C1 is fluent" in c1 and "Cambridge" in c1 and "'native'" in c1
+    assert rule("C2").startswith("- (all listed languages")

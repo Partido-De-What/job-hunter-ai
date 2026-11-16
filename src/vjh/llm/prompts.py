@@ -125,10 +125,22 @@ def language_rules(profile: MasterProfile) -> str:
         if lang.level in ("native", "C2"):
             continue
         cert = f" ({lang.certificate})" if lang.certificate else " (no certificate)"
-        lines.append(f"- {lang.language}: {lang.level}{cert}. A requirement for {lang.language} above "
-                     f"{lang.level} (e.g. 'fluent', 'very good', 'business level', or a higher CEFR level) "
-                     'is "not_met".')
+        lines.append(f"- {lang.language}: {lang.level}{cert}. " + _ABOVE_LEVEL[str(lang.level)](lang.language))
     return "\n".join(lines) or "- (all listed languages are native or C2)"
+
+
+# What counts as "above" each level. C1 is a proficient, fluent user in the CEFR: words like
+# "fluent" or "very good" are met by C1 and only native-level or C2 demands are above it.
+_ABOVE_LEVEL = {
+    **{lvl: (lambda name, lvl=lvl: f"A requirement for {name} above {lvl} (e.g. 'good', 'fluent', 'very good', "
+                                   "'business level', or a higher CEFR level) is \"not_met\".")
+       for lvl in ("A1", "A2", "B1")},
+    "B2": lambda name: (f"A requirement for {name} above B2 (e.g. 'fluent', 'very good', 'business fluent', "
+                        "'verhandlungssicher', C1 or C2) is \"not_met\"; 'good' is met."),
+    "C1": lambda name: (f"C1 is fluent: 'fluent', 'very good', 'excellent', 'business fluent' or "
+                        f"'verhandlungssicher' {name} are \"met\". Only native-level ('native', 'mother tongue', "
+                        "'Muttersprache') or C2 requirements are \"not_met\"."),
+}
 
 
 def location_rule(settings: Settings) -> str:

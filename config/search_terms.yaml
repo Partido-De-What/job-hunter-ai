@@ -129,7 +129,7 @@ relevance:
     - postdoc
     - phd\b
     - technical assistant
-    - technische[rn]? assist
+    - technische\S* ?assist     # also Technische*r / Technische:r Assistent*in
     - versuch
     - feldversuch
     - umwelt
