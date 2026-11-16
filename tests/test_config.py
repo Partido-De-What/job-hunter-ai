@@ -4,11 +4,17 @@ import re
 
 import pytest
 import yaml
-from conftest import PROJECT_ROOT
+from conftest import EXAMPLE_ROOT, PROJECT_ROOT
 from pydantic import ValidationError
 
 from vjh.config import load_config, load_home_location
 from vjh.models.settings import Settings
+
+
+def test_this_computers_config_is_valid():
+    """Whatever the user configured in config/ must load (values are theirs to choose)."""
+    cfg = load_config(PROJECT_ROOT)
+    assert cfg.settings.scoring.weights and cfg.settings.dashboard.port
 
 
 def test_settings_load_without_any_secrets(fake_project):
@@ -20,7 +26,7 @@ def test_settings_load_without_any_secrets(fake_project):
 
 
 def test_weights_match_architecture():
-    cfg = load_config(PROJECT_ROOT)
+    cfg = load_config(EXAMPLE_ROOT)
     assert cfg.settings.scoring.weights == {
         "professional_experience": 25, "education": 20, "technical_skills": 20,
         "responsibility_alignment": 15, "language_compatibility": 10,
@@ -31,11 +37,11 @@ def test_weights_match_architecture():
 @pytest.mark.parametrize("score,expected", [(95, "excellent"), (90, "excellent"), (85, "strong"),
                                             (70, "good_potential"), (60, "possible"), (59.9, "low_priority")])
 def test_categories(score, expected):
-    assert load_config(PROJECT_ROOT).settings.scoring.category_for(score) == expected
+    assert load_config(EXAMPLE_ROOT).settings.scoring.category_for(score) == expected
 
 
 def test_weights_must_sum_to_100():
-    data = yaml.safe_load((PROJECT_ROOT / "config" / "settings.yaml").read_text(encoding="utf-8"))
+    data = yaml.safe_load((EXAMPLE_ROOT / "config" / "settings.yaml").read_text(encoding="utf-8"))
     data["scoring"]["weights"]["education"] = 30
     with pytest.raises(ValidationError, match="sum to 100"):
         Settings.model_validate(data)
@@ -43,7 +49,7 @@ def test_weights_must_sum_to_100():
 
 def test_settings_file_contains_no_secrets():
     """Check every key and value (comments ignored) for secret-looking content."""
-    data = yaml.safe_load((PROJECT_ROOT / "config" / "settings.yaml").read_text(encoding="utf-8"))
+    data = yaml.safe_load((EXAMPLE_ROOT / "config" / "settings.yaml").read_text(encoding="utf-8"))
     flat: list[str] = []
 
     def walk(node):
@@ -65,7 +71,7 @@ def test_settings_file_contains_no_secrets():
 
 
 def test_settings_db_path_is_outside_project_by_default():
-    assert "%LOCALAPPDATA%" in load_config(PROJECT_ROOT).settings.database.path
+    assert "%LOCALAPPDATA%" in load_config(EXAMPLE_ROOT).settings.database.path
 
 
 def test_home_address_not_in_code_or_config():

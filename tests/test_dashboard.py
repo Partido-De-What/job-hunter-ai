@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from conftest import EXAMPLE_ROOT
 from sqlalchemy.orm import Session
 
 from vjh.config import load_config
@@ -90,7 +91,7 @@ def test_jobs_frame_and_filters(db):
 def test_sources_and_overview(db):
     with Session(db) as s:
         src = data.sources_frame(s, NOW)
-        ov = data.overview(s, NOW, load_config(Path(__file__).resolve().parents[1]).settings)
+        ov = data.overview(s, NOW, load_config(EXAMPLE_ROOT).settings)
     states = dict(zip(src["source"], src["state"], strict=True))
     assert states == {"Test broken source": "failing", "Test stale source": "stale"}
     assert ov["job_status"]["evaluated"] == 2 and len(ov["source_problems"]) == 2
@@ -210,7 +211,7 @@ def test_dashboard_already_running_just_opens_browser(monkeypatch, tmp_path):
     monkeypatch.setattr(cli_track, "_port_in_use", lambda port: True)
     monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url))
     monkeypatch.setattr(subprocess, "call", lambda *a, **k: pytest.fail("must not start a second server"))
-    assert cli_track.cmd_dashboard(load_config(Path(__file__).resolve().parents[1]), 8501) == 0
+    assert cli_track.cmd_dashboard(load_config(EXAMPLE_ROOT), 8501) == 0
     assert opened == ["http://127.0.0.1:8501"]
 
 

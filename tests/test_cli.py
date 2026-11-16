@@ -45,5 +45,4 @@ def test_real_profile_is_valid_if_present():
         import pytest
         pytest.skip("no real profile on this machine")
     profile = load_profile(path)
-    german = [lang for lang in profile.languages if lang.language.lower() == "german"]
-    assert german and german[0].level == "A2" and not german[0].certified
+    assert profile.personal.full_name and profile.languages

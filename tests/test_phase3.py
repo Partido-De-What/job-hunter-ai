@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 
 import pytest
 import yaml
-from conftest import PROJECT_ROOT
+from conftest import EXAMPLE_ROOT
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -24,13 +24,13 @@ from vjh.scoring.model import clean_evidence, compute
 TODAY = date(2026, 11, 15)
 NOW = datetime(2026, 11, 15, 9, 0)
 LONG = "Wir suchen Unterstützung im Labor für PCR, Genotypisierung und Pflanzenzüchtung. " * 10
-SETTINGS = load_config(PROJECT_ROOT).settings.model_copy(deep=True)
+SETTINGS = load_config(EXAMPLE_ROOT).settings.model_copy(deep=True)
 SETTINGS.llm.backend = "api"            # these tests cover the paid-API path; see test_claude_code.py
 WEIGHTS = SETTINGS.scoring.weights
 
 
 def rules(**kw):
-    terms = yaml.safe_load((PROJECT_ROOT / "config" / "search_terms.yaml").read_text(encoding="utf-8"))
+    terms = yaml.safe_load((EXAMPLE_ROOT / "config" / "search_terms.yaml").read_text(encoding="utf-8"))
     return Rules.from_settings(terms, SETTINGS, today=TODAY)
 
 

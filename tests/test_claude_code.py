@@ -5,7 +5,7 @@ import subprocess
 from datetime import datetime
 
 import pytest
-from conftest import PROJECT_ROOT
+from conftest import EXAMPLE_ROOT
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from test_phase3 import good_answer, job
@@ -18,7 +18,7 @@ from vjh.models import MasterProfile
 from vjh.pipeline.evaluate import evaluate_jobs
 
 NOW = datetime(2026, 11, 15, 9, 0)
-SETTINGS = load_config(PROJECT_ROOT).settings.model_copy(deep=True)
+SETTINGS = load_config(EXAMPLE_ROOT).settings.model_copy(deep=True)
 SETTINGS.llm.backend = "claude_code"
 
 

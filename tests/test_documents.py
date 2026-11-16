@@ -5,7 +5,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 import pytest
-from conftest import PROJECT_ROOT
+from conftest import EXAMPLE_ROOT
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -30,7 +30,7 @@ from vjh.llm.client import LLMResult
 from vjh.models import MasterProfile
 from vjh.models.profile import HomeLocation
 
-SETTINGS = load_config(PROJECT_ROOT).settings.model_copy(deep=True)
+SETTINGS = load_config(EXAMPLE_ROOT).settings.model_copy(deep=True)
 SETTINGS.llm.backend = "claude_code"
 HOME = HomeLocation(street="Teststraße 1", postcode="1010", city="Vienna")
 

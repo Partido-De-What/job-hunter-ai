@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from conftest import PROJECT_ROOT
+from conftest import EXAMPLE_ROOT
 from sqlalchemy.orm import Session
 
 from vjh.automation import schedule
@@ -18,7 +18,7 @@ from vjh.db import migrate
 from vjh.db.tables import ApplicationRow, GeneratedDocumentRow, JobEvaluationRow, JobRow
 
 NOW = datetime(2026, 11, 16, 7, 30)
-SETTINGS = load_config(PROJECT_ROOT).settings
+SETTINGS = load_config(EXAMPLE_ROOT).settings
 
 
 def add_job(s, title, score, *, inel=False, desc="We are looking for you and your lab skills in our team. " * 5,
