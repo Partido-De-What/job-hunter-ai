@@ -55,6 +55,73 @@ class QAReport:
                            "issues": [asdict(i) for i in self.issues]}, ensure_ascii=False, indent=2)
 
 
+_WORD = re.compile(r"[a-z0-9äöüß+#]+")
+_STOP = {"and", "or", "of", "the", "in", "with", "for", "e", "g", "eg", "etc", "und", "oder", "mit", "der", "die",
+         "das", "von", "experience", "erfahrung", "skills", "knowledge", "kenntnisse", "basic", "advanced"}
+
+
+def _words(text: str) -> set[str]:
+    return set(_WORD.findall(text.lower()))
+
+
+# Common lab/CV abbreviations: the keyword counts as present if either form is in the text.
+_ABBREV = {"qc": ["quality", "control"], "qa": ["quality", "assurance"], "sop": ["standard", "operating"],
+           "sops": ["standard", "operating"], "gmp": ["good", "manufacturing"], "ms": ["microsoft"],
+           "qm": ["quality", "management"], "lims": ["laboratory", "information"]}
+
+
+def _word_in(w: str, text_words: set[str]) -> bool:
+    """Exact word, or the same stem (first 6 letters: 'autoclaving' ~ 'autoclave', 'cultures' ~ 'culture')."""
+    if w in text_words:
+        return True
+    if w in _ABBREV and all(x in text_words for x in _ABBREV[w]):
+        return True
+    stem = w[:6]
+    return len(w) >= 5 and any(t.startswith(stem) for t in text_words if len(t) >= 5)
+
+
+def keyword_present(keyword: str, text_words: set[str]) -> bool:
+    """A keyword like 'PCR/qPCR' or 'Cell culture (eukaryotic)' counts as present when the
+    meaningful words of at least one alternative appear in the text: all of them for short
+    keywords, at least two thirds for keywords of three or more words."""
+    core = re.sub(r"\([^)]*\)", " ", keyword.lower())
+    for alt in re.split(r"/|,|;|\bor\b|\boder\b", core):
+        words = [w for w in _WORD.findall(alt) if w not in _STOP and len(w) > 1]
+        if not words:
+            continue
+        hits = sum(_word_in(w, text_words) for w in words)
+        need = len(words) if len(words) <= 2 else -(-2 * len(words) // 3)
+        if hits >= need:
+            return True
+    return False
+
+
+def keyword_coverage(text: str, keywords: list[str]) -> tuple[list[str], list[str]]:
+    """(present, missing) for the ad keywords the candidate truthfully matches.
+    Applicant tracking systems rank CVs by such keywords, so a matched skill that the CV
+    does not mention is a lost point (same idea as Resume Matcher / Jobscan, but local and free)."""
+    tw = _words(text)
+    seen: set[str] = set()
+    present, missing = [], []
+    for k in keywords:
+        k = (k or "").strip()
+        if not k or k.lower() in seen:
+            continue
+        seen.add(k.lower())
+        (present if keyword_present(k, tw) else missing).append(k)
+    return present, missing
+
+
+def ats_keyword_issues(text: str, evaluation: dict | None) -> list[Issue]:
+    """Warnings (never errors) for matched skills the CV leaves out."""
+    if not evaluation:
+        return []
+    _, missing = keyword_coverage(text, evaluation.get("technical_skill_matches") or [])
+    return [Issue("warning", "ats", f"Matching skill from the ad not mentioned in the CV: '{k}'",
+                  "Mention it truthfully (skills or a bullet) so applicant tracking systems find it.")
+            for k in missing]
+
+
 def language_level_problems(text: str, profile: MasterProfile, aliases: dict[str, list[str]]) -> list[str]:
     """Segments that name a language the candidate speaks below C2 together with a higher-level
     claim. A segment that states the true level (e.g. "A2") is accepted."""

@@ -1,0 +1,42 @@
+# Dashboard look and privacy defaults (read by Streamlit when `vjh dashboard` starts in this folder).
+#
+# Design choices (2026-11-16), following widely cited UI references:
+# - Refactoring UI (Wathan & Schoger): one brand colour used sparingly for actions and emphasis,
+#   an off-white page with white cards, soft borders instead of heavy lines, hierarchy through
+#   weight and colour rather than size, a limited set of greys.
+# - Laws of UX (Yablonski): Aesthetic-Usability effect (a calm, consistent look is perceived as
+#   easier to use), Jakob's law (familiar dashboard patterns), Goal-Gradient effect (weekly goal bar).
+# - WCAG 2.2 contrast: body text #1F2A24 on #F6F7F4 is well above 4.5:1.
+# No external fonts or CDNs: the dashboard stays fully local.
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
+
+[theme]
+base = "light"
+primaryColor = "#2E7D32"              # green: actions, links, progress
+backgroundColor = "#F6F7F4"           # off-white page
+secondaryBackgroundColor = "#FFFFFF"  # cards, inputs, sidebar
+textColor = "#1F2A24"
+linkColor = "#1B5E20"
+linkUnderline = false
+borderColor = "#DCE3D8"
+dataframeBorderColor = "#E4E9E1"
+dataframeHeaderBackgroundColor = "#EEF2EB"
+showWidgetBorder = true
+baseRadius = "0.6rem"
+buttonRadius = "0.5rem"
+baseFontSize = 15
+headingFontWeights = [700, 650, 600]
+metricValueFontWeight = 650
+greenColor = "#2E7D32"
+blueColor = "#1565C0"
+orangeColor = "#E65100"
+redColor = "#C62828"
+
+[theme.sidebar]
+backgroundColor = "#EEF2EB"
+secondaryBackgroundColor = "#FFFFFF"

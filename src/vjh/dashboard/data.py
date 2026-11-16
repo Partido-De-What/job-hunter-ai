@@ -365,3 +365,53 @@ def progress(session: Session, today: date, recommend_min_score: float, weekly_g
     return {"funnel": funnel, "rates": rates, "weekly": weekly_df, "this_week_applied": this_week,
             "weekly_goal": weekly_goal, "streak": streak,
             "feedback_good": sum(f.accepted for f in fb), "feedback_bad": sum(not f.accepted for f in fb)}
+
+
+# ---------------- next steps (Overview) ----------------
+
+@dataclass
+class NextStep:
+    icon: str          # Material icon, e.g. ":material/event:"
+    text: str
+    page: str          # dashboard page that handles it
+    urgent: bool = False
+
+
+def next_steps(session: Session, today: date, recommend_min_score: float, weekly_goal: int,
+               now: datetime | None = None) -> list[NextStep]:
+    """The few things worth doing now, most urgent first (empty = nothing to do)."""
+    steps: list[NextStep] = []
+    due = due_items(session, today, 7)
+    overdue = [d for d in due if d.when < today]
+    if overdue:
+        steps.append(NextStep(":material/alarm:", f"{len(overdue)} follow-up/interview/deadline date(s) are overdue",
+                              "Applications", urgent=True))
+    soon = len(due) - len(overdue)
+    if soon:
+        steps.append(NextStep(":material/event:", f"{soon} date(s) due in the next 7 days", "Applications"))
+    apps = dict(session.execute(select(ApplicationRow.status, func.count()).group_by(ApplicationRow.status)).all())
+    if apps.get("approved"):
+        steps.append(NextStep(":material/send:", f"{apps['approved']} application(s) approved and ready to send "
+                              "- send them yourself, then mark them applied", "Applications"))
+    docs = dict(session.execute(select(GeneratedDocumentRow.approval_status, func.count())
+                                .group_by(GeneratedDocumentRow.approval_status)).all())
+    if docs.get("qa_passed"):
+        steps.append(NextStep(":material/fact_check:", f"{docs['qa_passed']} document(s) passed QA and wait for "
+                              "your approval", "Documents"))
+    if docs.get("qa_failed"):
+        steps.append(NextStep(":material/report:", f"{docs['qa_failed']} document(s) failed QA - read the report "
+                              "or create a new version", "Documents"))
+    if apps.get("recommended"):
+        steps.append(NextStep(":material/star:", f"{apps['recommended']} recommended job(s) to look at and rate",
+                              "Jobs"))
+    if weekly_goal:
+        done = progress(session, today, recommend_min_score, weekly_goal, weeks=1)["this_week_applied"]
+        if done < weekly_goal:
+            steps.append(NextStep(":material/flag:", f"{weekly_goal - done} more application(s) to reach this "
+                                  "week's goal", "Progress"))
+    problems = sources_frame(session, now or datetime.combine(today, datetime.min.time()))
+    bad = problems[problems["state"].isin(["failing", "stale"])]
+    if len(bad):
+        steps.append(NextStep(":material/sync_problem:", f"{len(bad)} automatic source(s) failing or stale",
+                              "Sources"))
+    return sorted(steps, key=lambda s: not s.urgent)

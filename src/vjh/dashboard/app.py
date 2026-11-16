@@ -26,6 +26,14 @@ APP_STATUSES = [s.value for s in ApplicationStatus]
 CATEGORY_LABEL = {"excellent": "Excellent", "strong": "Strong", "good_potential": "Good potential",
                   "possible": "Possible", "low_priority": "Low priority"}
 REQ_LABEL = {"met": "✅ met", "partially_met": "🟡 partial", "not_met": "❌ not met", "unknown": "❔ unknown"}
+# Menu icons (Google Material Symbols, built into Streamlit - nothing is downloaded).
+PAGE_ICON = {"Overview": ":material/dashboard:", "Progress": ":material/trending_up:", "Jobs": ":material/work:",
+             "Job details": ":material/description:", "Applications": ":material/view_kanban:",
+             "Documents": ":material/folder_open:", "Sources": ":material/hub:", "Logs & errors": ":material/terminal:",
+             "Feedback": ":material/thumbs_up_down:", "Import a job": ":material/add_link:"}
+# One colour per score category, from strong (green) to weak (grey).
+CATEGORY_COLOR = {"excellent": "green", "strong": "green", "good_potential": "blue", "possible": "orange",
+                  "low_priority": "gray"}
 
 
 @st.cache_resource
@@ -55,34 +63,74 @@ def open_job(job_id: int) -> None:
     st.session_state["page"] = "Job details"
 
 
+def go(page_name: str) -> None:
+    st.session_state["page"] = page_name
+
+
+def page_header(title: str, subtitle: str = "") -> None:
+    """Same header on every page: title plus one quiet line saying what the page is for."""
+    st.header(f"{PAGE_ICON.get(title, '')} {title}".strip(), anchor=False)
+    if subtitle:
+        st.caption(subtitle)
+
+
+def score_badge(score: float | None, category: str | None) -> str:
+    """Markdown badge, e.g. ':green-badge[82 · Strong]'."""
+    if score is None:
+        return ":gray-badge[not evaluated]"
+    color = CATEGORY_COLOR.get(category or "", "gray")
+    return f":{color}-badge[{score:.0f} · {CATEGORY_LABEL.get(category or '', category or '')}]"
+
+
 # ---------------- sidebar ----------------
 st.sidebar.title(f"🌱 {cfg.settings.dashboard.title}")
-page = st.sidebar.radio("Page", PAGES, key="page")
-st.sidebar.caption("Local only (127.0.0.1). Nothing is sent to employers.")
-if st.sidebar.button("Reload data"):
-    st.rerun()
+page = st.sidebar.radio("Page", PAGES, key="page", label_visibility="collapsed",
+                        format_func=lambda p: f"{PAGE_ICON.get(p, '')} {p}")
+st.sidebar.divider()
+with session() as _s:
+    _last = data.runs_frame(_s, limit=1)
+if len(_last):
+    _r = _last.iloc[0]
+    _ok = _r["status"] in ("ok", "success", "completed")
+    st.sidebar.caption(f"{':material/check_circle:' if _ok else ':material/warning:'} Last run "
+                       f"{pd.Timestamp(_r['started']):%d %b %H:%M} · {_r['status']}")
+st.sidebar.caption(":material/lock: Local only (127.0.0.1). Nothing is sent to employers.")
+st.sidebar.button("Reload data", icon=":material/refresh:", on_click=st.cache_data.clear)
 
 
 # ---------------- pages ----------------
 def page_overview() -> None:
-    st.header("Overview")
+    now = datetime.now()
+    hello = "Good morning" if now.hour < 12 else "Good afternoon" if now.hour < 18 else "Good evening"
+    page_header("Overview", f"{hello} · {now:%A %d %B %Y}")
     with session() as s:
-        ov = data.overview(s, datetime.now(), cfg.settings)
+        ov = data.overview(s, now, cfg.settings)
+        steps = data.next_steps(s, now.date(), cfg.settings.thresholds.recommend_min_score,
+                                cfg.settings.progress.weekly_application_goal, now)
     js, ap = ov["job_status"], ov["applications"]
     c = st.columns(5)
-    c[0].metric("New today", ov["new_today"])
-    c[1].metric("Waiting for AI", js.get("relevant", 0))
-    c[2].metric("Evaluated", js.get("evaluated", 0))
+    c[0].metric("New today", ov["new_today"], border=True)
+    c[1].metric("Waiting for AI", js.get("relevant", 0), border=True)
+    c[2].metric("Evaluated", js.get("evaluated", 0), border=True)
     c[3].metric("In progress", sum(ap.get(k, 0) for k in ("recommended", "under_review",
-                                                          "documents_generated", "approved")),
+                                                          "documents_generated", "approved")), border=True,
                 help="Recommended, under review, documents generated or approved - not yet applied")
-    c[4].metric("Applied / interview", ap.get("applied", 0) + ap.get("interview", 0))
+    c[4].metric("Applied / interview", ap.get("applied", 0) + ap.get("interview", 0), border=True)
     goal = cfg.settings.progress.weekly_application_goal
     if goal:
         with session() as s:
             done = data.progress(s, date.today(), cfg.settings.thresholds.recommend_min_score, goal,
                                  weeks=1)["this_week_applied"]
         st.progress(min(done / goal, 1.0), text=f"🎯 This week: {done} of {goal} applications")
+
+    with st.container(border=True):
+        st.markdown("**:material/checklist: Next steps**")
+        if not steps:
+            st.caption("Nothing to do right now. New jobs arrive with the daily run.")
+        for i, step in enumerate(steps[:6]):
+            a, b = st.columns([5, 1], vertical_alignment="center")
+            a.markdown(f"{step.icon} " + (f":red[**{step.text}**]" if step.urgent else step.text))
+            b.button("Open", key=f"step{i}", on_click=go, args=(step.page,), width="stretch")
 
     if ov["backend"] == "claude_code":
         st.caption(f"AI usage today: {ov['evaluations_today']} of {ov['subscription_limit']} evaluations "
@@ -194,7 +242,7 @@ def _do_status(actions, picked: list[int], status: str, when: date, note: str = 
 
 
 def page_jobs() -> None:
-    st.header("Jobs")
+    page_header("Jobs", "Every job found, best first. Tick rows to rate, mark applied or change status; click a title to open the ad.")
     with session() as s:
         df = data.jobs_frame(s)
     with st.expander("Filters", expanded=True):
@@ -223,7 +271,7 @@ def page_jobs() -> None:
 
 
 def page_job_details() -> None:
-    st.header("Job details")
+    page_header("Job details")
     job_id = st.session_state.get("job_id")
     if job_id is None:
         st.info("Open a job from the Jobs or Overview page.")
@@ -238,12 +286,15 @@ def page_job_details() -> None:
     st.markdown(f"**{j.employer}** · {j.location or 'location not stated'} · source: {j.source} · "
                 + data.md_link("open the ad ↗" if data.is_web_url(j.url) else "search for the ad 🔎",
                                j.url, j.employer, search_title=j.title))
+    st.markdown(" ".join(b for b in [
+        score_badge(ev.overall_score if ev else None, ev.category if ev else None),
+        f":violet-badge[AI: {ev.recommendation}]" if ev else "",
+        f":gray-badge[:material/flag: {(app.status if app else 'not tracked').replace('_', ' ')}]",
+        ":red-badge[:material/warning: mandatory not met]" if ev and ev.potentially_ineligible else ""] if b))
     c = st.columns([1, 3])
-    c[0].metric("Score", f"{ev.overall_score:.0f}" if ev else "-")
-    c[1].markdown(
-        f"**Category:** {CATEGORY_LABEL.get(ev.category, '-') if ev else '-'}  \n"
-        f"**AI recommendation:** {ev.recommendation.upper() if ev else '-'}  \n"
-        f"**Application status:** {(app.status if app else 'none yet').replace('_', ' ')}")
+    c[0].metric("Score", f"{ev.overall_score:.0f}" if ev else "-", border=True)
+    summary = (ev.explanation or "") if ev else "Not evaluated yet."
+    c[1].markdown(summary if len(summary) <= 420 else summary[:420].rsplit(" ", 1)[0] + " …")
     info = st.columns(4)
     info[0].write(f"**Salary (as advertised):** {d['salary'] or 'not stated'}")
     info[1].write("**Commute:** unavailable (no routing service chosen)")
@@ -297,6 +348,7 @@ def page_job_details() -> None:
 
     st.subheader("Documents")
     if d["documents"]:
+        _keyword_match(d["documents"], ai)
         _documents_list(d["documents"], key=f"jd{j.id}")
     else:
         st.caption("No documents yet.")
@@ -304,8 +356,8 @@ def page_job_details() -> None:
         g1, g2 = st.columns(2)
         langs = g1.multiselect("Languages", ["en", "de", "it"], default=["en"])
         kinds = g2.multiselect("Documents", ["cv", "letter"], default=["cv", "letter"])
-        go = st.form_submit_button("Create documents (about 1 minute each, uses your Claude subscription)")
-    if go and langs and kinds:
+        create = st.form_submit_button("Create documents (about 1 minute each, uses your Claude subscription)")
+    if create and langs and kinds:
         _generate(j.id, langs, kinds)
 
     st.subheader("Application")
@@ -318,6 +370,28 @@ def page_job_details() -> None:
     for fb in d["feedback"]:
         st.caption(f"{'👍' if fb.accepted else '👎'} {fb.created_at:%Y-%m-%d}: {fb.reason}")
     _feedback_form(j.id)
+
+
+def _keyword_match(docs, ai: dict | None) -> None:
+    """ATS keyword check for the newest CV: which of the ad's skills that the candidate truly has
+    are actually written in the CV (local and free, in the spirit of Resume Matcher / Jobscan)."""
+    from vjh.documents.qa import keyword_coverage
+    from vjh.documents.render import docx_text
+    keywords = (ai or {}).get("technical_skill_matches") or []
+    cvs = [x for x in docs if x.doc_type == "cv" and Path(x.file_path).exists()]
+    if not keywords or not cvs:
+        return
+    newest = max(cvs, key=lambda x: (x.created_at, x.id))
+    present, missing = keyword_coverage(docx_text(Path(newest.file_path)), keywords)
+    share = len(present) / (len(present) + len(missing))
+    with st.container(border=True):
+        st.markdown(f"**:material/manage_search: ATS keyword match** · CV v{newest.version} ({newest.language}): "
+                    f"**{len(present)} of {len(present) + len(missing)}** matching skills from the ad are in the CV")
+        st.progress(share)
+        st.markdown(" ".join([f":green-badge[{k}]" for k in present] + [f":gray-badge[missing: {k}]" for k in missing]))
+        if missing:
+            st.caption("Applicant tracking systems rank CVs by such keywords. You have these skills, so a new "
+                       "version could mention them.")
 
 
 def _generate(job_id: int, langs: list[str], kinds: list[str]) -> None:
@@ -440,7 +514,7 @@ def _set_doc(doc_id: int, approve: bool) -> None:
 
 
 def page_applications() -> None:
-    st.header("Applications")
+    page_header("Applications", "Where each application stands. Board for the overview, Table for changes.")
     with session() as s:
         df = data.applications_frame(s)
     if df.empty:
@@ -498,18 +572,18 @@ def _board(df: pd.DataFrame) -> None:
 
 def page_progress() -> None:
     import altair as alt
-    st.header("Progress")
+    page_header("Progress", "Your weekly goal, response rates and the path from found to offer.")
     with session() as s:
         p = data.progress(s, date.today(), cfg.settings.thresholds.recommend_min_score,
                           cfg.settings.progress.weekly_application_goal)
     goal, done, r = p["weekly_goal"], p["this_week_applied"], p["rates"]
     c = st.columns(5)
-    c[0].metric("Applied this week", f"{done} / {goal}" if goal else done)
-    c[1].metric("Weeks in a row on goal", p["streak"] if goal else "–")
-    c[2].metric("Applications sent", r["applied"])
+    c[0].metric("Applied this week", f"{done} / {goal}" if goal else done, border=True)
+    c[1].metric("Weeks in a row on goal", p["streak"] if goal else "–", border=True)
+    c[2].metric("Applications sent", r["applied"], border=True)
     c[3].metric("Response rate", f"{r['response_rate']}%" if r["response_rate"] is not None else "–",
-                help="Applications that got an answer (interview, offer, rejection or a reply you recorded)")
-    c[4].metric("Interview rate", f"{r['interview_rate']}%" if r["interview_rate"] is not None else "–")
+                border=True, help="Applications that got an answer (interview, offer, rejection or a reply you recorded)")
+    c[4].metric("Interview rate", f"{r['interview_rate']}%" if r["interview_rate"] is not None else "–", border=True)
     if goal:
         st.progress(min(done / goal, 1.0), text=("🎯 Weekly goal reached!" if done >= goal
                                                  else f"{goal - done} more to reach this week's goal"))
@@ -553,7 +627,7 @@ def page_progress() -> None:
 
 
 def page_documents() -> None:
-    st.header("Documents")
+    page_header("Documents", "Generated CVs and cover letters with their quality report. Approve before you send anything.")
     with session() as s:
         df = data.documents_frame(s)
         if df.empty:
@@ -567,7 +641,7 @@ def page_documents() -> None:
 
 
 def page_sources() -> None:
-    st.header("Sources")
+    page_header("Sources", "Where jobs come from and whether each source is working.")
     with session() as s:
         df = data.sources_frame(s, datetime.now())
     st.dataframe(df, hide_index=True)
@@ -576,7 +650,7 @@ def page_sources() -> None:
 
 
 def page_logs() -> None:
-    st.header("Logs & errors")
+    page_header("Logs & errors", "Recent runs and anything that went wrong.")
     with session() as s:
         runs = data.runs_frame(s)
     st.subheader("Recent runs")
@@ -596,7 +670,7 @@ def page_logs() -> None:
 
 
 def page_feedback() -> None:
-    st.header("Feedback")
+    page_header("Feedback", "What your ratings say about the search, with suggestions (nothing changes automatically).")
     from vjh.tracker.feedback import build_report
     terms = load_yaml(cfg.root / "config" / "search_terms.yaml")
     with session() as s:
@@ -607,7 +681,7 @@ def page_feedback() -> None:
 
 
 def page_import() -> None:
-    st.header("Import a job")
+    page_header("Import a job", "Add a job you found yourself: a web address, pasted text or a file.")
     st.caption("For jobs from sites that are not collected automatically. The ad text is stored as data only.")
     from vjh.sources.imports import ImportRefused, import_file, import_text, import_url
     tab_url, tab_text, tab_file = st.tabs(["From a web address", "Paste the text", "Upload a file"])

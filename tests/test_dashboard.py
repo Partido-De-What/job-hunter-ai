@@ -129,7 +129,7 @@ def _run(page: str, **state):
                                   "Logs & errors", "Feedback", "Import a job"])
 def test_every_page_renders(app_env, page):
     at = _run(page)
-    assert at.header[0].value in (page, "Import a job")
+    assert at.header[0].value.endswith(page)
 
 
 def test_job_details_and_status_form(app_env):
@@ -240,3 +240,38 @@ def test_titles_link_to_the_ad_or_a_search():
     assert data.title_link("javascript:alert(1)", "X", "Y").startswith("https://www.google.com/")   # never a script link
     assert data.title_link("https://a.example/#/job/7", "T", "E") == "https://a.example/#/job/7"     # hash routes kept
     assert data.md_link("A [b]", "https://x.example/1", "E") == "[A (b)](<https://x.example/1>)"
+
+
+def test_next_steps_lists_what_to_do(db):
+    from vjh.dashboard import actions
+    actions.change_status(db, [1], "approved")
+    actions.change_status(db, [2], "applied", date(2026, 11, 1))           # follow-up 11.11 -> overdue on 16.11
+    with Session(db) as s:
+        steps = data.next_steps(s, date(2026, 11, 16), 70, weekly_goal=3, now=NOW)
+    texts = [x.text for x in steps]
+    assert steps[0].urgent and "overdue" in texts[0]
+    assert any("ready to send" in t for t in texts) and any("week's goal" in t for t in texts)
+    assert any(x.page == "Sources" for x in steps)                         # the seeded broken source
+    with Session(db) as s:
+        assert all(not x.urgent for x in data.next_steps(s, date(2026, 11, 2), 70, 0, NOW))
+
+
+def test_ats_keyword_coverage():
+    from vjh.documents.qa import ats_keyword_issues, keyword_coverage
+    cv = "Skills: PCR, qPCR and genotyping. Cell cultures maintained. ELISA assays. R for data analysis."
+    present, missing = keyword_coverage(cv, ["PCR/qPCR", "Cell culture (eukaryotic)", "ELISA", "HPLC",
+                                             "Data analysis in R", "elisa"])
+    assert present == ["PCR/qPCR", "Cell culture (eukaryotic)", "ELISA", "Data analysis in R"] and missing == ["HPLC"]
+    issues = ats_keyword_issues(cv, {"technical_skill_matches": ["HPLC", "PCR"]})
+    assert [i.severity for i in issues] == ["warning"] and "HPLC" in issues[0].text
+    assert ats_keyword_issues(cv, None) == []
+
+
+def test_ats_keywords_tolerate_wording():
+    from vjh.documents.qa import keyword_coverage
+    cv = ("Quality control laboratory: quality procedures and accurate documentation. Maintained sterile cultures; "
+          "autoclaving and sterilisation of lab supplies.")
+    present, missing = keyword_coverage(cv, ["QC procedures and documentation", "Sterile technique and autoclaving",
+                                             "Flow cytometry", "HPLC"])
+    assert present == ["QC procedures and documentation", "Sterile technique and autoclaving"]
+    assert missing == ["Flow cytometry", "HPLC"]

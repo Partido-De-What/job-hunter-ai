@@ -347,6 +347,10 @@ It opens at http://127.0.0.1:8501 and works **only on this computer** (usage sta
 
 **Desktop icon (Windows):** `vjh shortcut` puts a **Job Hunter AI** icon on your Desktop. Double-click it to open the dashboard (it runs in a minimised window; close that window to stop it). Remove it with `vjh shortcut --remove`.
 
+**Look and layout:** the colours, corners and fonts are set in `.streamlit/config.toml` (a calm green theme, no external fonts, so the dashboard stays fully local). The **Overview** opens with **Next steps**: overdue dates, documents waiting for approval or with a failed check, recommended jobs to rate, how far you are from the weekly goal, and failing sources, each with an **Open** button.
+
+**ATS keyword match:** on a job's page, above its documents, a box shows how many of the ad's skills that you really have are actually written in the newest CV (for example "5 of 6"), with the missing ones in grey. Applicant tracking systems rank CVs by such keywords. The same check adds a *warning* (never an error) to the CV's quality report. It works without the AI, so it costs nothing.
+
 **Job titles are links:** click a title in any table or card to open the job ad (where you apply). A 🔎 in front means no link is stored, so it opens a web search for that job instead.
 
 **Two people on one computer:** use two separate copies of this folder. Each copy needs its own `dashboard: port` (e.g. 8501 and 8502) and `dashboard: title` (this also names the Desktop icon), its own `database: path` and its own `automation: task_name` in `config/settings.yaml`.
