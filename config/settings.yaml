@@ -108,9 +108,10 @@ collection:
   max_retries: 2              # only for 429 / 5xx answers, with backoff
   max_pages_per_source: 30    # hard cap on detail pages fetched per source per run
   accept_language: "de-AT,de;q=0.9,en;q=0.8"   # EXAMPLE: languages you prefer pages in
-  # JobSpy (LinkedIn / Indeed / Glassdoor) scrapes sites whose terms of use forbid it.
-  # It stays OFF unless you decide to accept that risk yourself (see README, "JobSpy").
-  allow_jobspy: false
+  # JobSpy (LinkedIn / Indeed / Glassdoor) is ON. These sites' terms of use forbid scraping and
+  # they may temporarily block your internet connection. No account is ever used.
+  # Set to false to stop collecting from them (see README, "JobSpy").
+  allow_jobspy: true
 
 automation:
   # Daily routine (vjh run-daily), scheduled with: vjh schedule install

@@ -130,8 +130,8 @@ class CollectionSettings(_Strict):
     # Generic, non-identifying client name (no personal contact details).
     user_agent: str = "JobHunter-personal-job-search/1.0 (non-commercial; respects robots.txt)"
     accept_language: str = "en;q=0.9"         # languages you prefer pages in, e.g. "de-AT,de;q=0.9,en;q=0.8"
-    # JobSpy scrapes LinkedIn/Indeed/Glassdoor against their terms of use. Off unless YOU decide.
-    allow_jobspy: bool = False
+    # JobSpy scrapes LinkedIn/Indeed/Glassdoor against their terms of use. On by default; set false to stop.
+    allow_jobspy: bool = True
     min_delay_seconds: float = Field(default=3.0, ge=1.0)
     timeout_seconds: float = Field(default=20.0, gt=0)
     max_retries: int = Field(default=2, ge=0, le=5)

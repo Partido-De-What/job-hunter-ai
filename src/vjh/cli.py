@@ -102,7 +102,8 @@ def cmd_status(cfg: AppConfig) -> int:
           f"min salary {p.salary_currency} {p.min_gross_annual_salary:,.0f}/yr, "
           f"max commute {p.max_commute_minutes_one_way} min")
     if cfg.settings.collection.allow_jobspy:
-        _warn("JobSpy is ON: LinkedIn/Indeed/Glassdoor are scraped against their terms (your decision)")
+        _warn("JobSpy is ON: LinkedIn/Indeed/Glassdoor are scraped against their terms of use "
+              "(switch off: collection.allow_jobspy: false)")
     missing = gitignore_missing(cfg.root)
     if missing:
         problems += 1

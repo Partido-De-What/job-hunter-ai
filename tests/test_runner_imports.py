@@ -132,7 +132,8 @@ def test_jobspy_sources_are_skipped_unless_allowed(tmp_path, db_path):
     web = FakeWeb()
     client, _ = web.client()
     engine = migrate.make_engine(db_path)
-    off = run_collection(engine, reg, CollectionSettings(), tmp_path, client=client, include_local=False)
+    off = run_collection(engine, reg, CollectionSettings(allow_jobspy=False), tmp_path, client=client,
+                         include_local=False)
     engine.dispose()
     assert off.results == [] and web.requests == []                 # not even attempted
 

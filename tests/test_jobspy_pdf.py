@@ -118,7 +118,7 @@ def test_pdf_links_collector(tmp_path, monkeypatch):
 def test_jobspy_is_off_unless_allowed(tmp_path, fake_jobspy):
     calls, _ = fake_jobspy
     client, _ = FakeWeb().client()
-    ctx = CollectContext(client=client, settings=CollectionSettings(), now=NOW, data_dir=tmp_path)
+    ctx = CollectContext(client=client, settings=CollectionSettings(allow_jobspy=False), now=NOW, data_dir=tmp_path)
     with pytest.raises(RuntimeError, match="switched off"):
         get_collector("jobspy")(_src(queries=["a"]), ctx)
     assert calls == []

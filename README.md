@@ -160,7 +160,7 @@ All commands: `vjh --help`.
 | **Automatic** | Career pages with structured job data, PDF job notices, Personio/SmartRecruiters feeds, RSS |
 | **Your job-alert emails** | Any job board that can email you new jobs |
 | **Manual import** | Any other site: a web address, pasted text, or a file |
-| **JobSpy (off by default)** | LinkedIn, Indeed, Glassdoor (see below) |
+| **JobSpy (on)** | LinkedIn, Indeed, Glassdoor (see below) |
 
 `config\sources.yaml` holds example entries. Replace them with sources for your area. Then check them; this only reads:
 
@@ -193,7 +193,15 @@ vjh import-url "https://example.org/jobs/123"
 vjh import-file "C:\Users\me\Downloads\job.pdf" --title "Lab Technician" --employer "Example Ltd"
 ```
 
-**JobSpy (LinkedIn, Indeed, Glassdoor).** These sites forbid scraping in their terms of use, and they may temporarily block your internet address. JobSpy is therefore **switched off**. To use it anyway, accepting that risk **yourself**, set `collection.allow_jobspy: true` in `config\settings.yaml` and adjust the JobSpy entries in `config\sources.yaml`. It never logs in to any account.
+**JobSpy (LinkedIn, Indeed, Glassdoor) is switched on.** It is the quickest way to get many jobs, but you should know that:
+
+- these sites **forbid automated collection in their terms of use**;
+- they may **temporarily block your internet connection** if they notice it;
+- JobSpy **never logs in**, so your accounts are not involved.
+
+Before the first run, set the `location` of the JobSpy entries in `config\sources.yaml` to **your** city. Their search words are the `core_queries` in `config\search_terms.yaml`.
+
+To stop using it, set `collection.allow_jobspy: false` in `config\settings.yaml`.
 
 Source monitoring:
 

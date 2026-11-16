@@ -11,7 +11,7 @@
 #   jsonld_page     career page with job links        params: {link_pattern: <regex>, employer: ..., text_fallback: true|false}
 #   pdf_links       one PDF notice per vacancy        params: {link_pattern: <regex>, employer: ...}
 #   email_alert     saved job-alert emails (.eml) in data/imports/alerts
-#   jobspy          LinkedIn/Indeed/Glassdoor - OFF unless collection.allow_jobspy is true (your decision)
+#   jobspy          LinkedIn/Indeed/Glassdoor - ON (collection.allow_jobspy); set its location to YOUR city
 
 sources:
   # --- Example: a research institute whose job pages publish structured data (schema.org JobPosting) ---
@@ -31,7 +31,7 @@ sources:
     collector: email_alert
     access_restrictions: "EXAMPLE (Austria). No official feed: use job-alert emails."
 
-  # --- JobSpy: skipped unless collection.allow_jobspy is true (scraping against the sites' terms) ---
+  # --- JobSpy (on by default; scraping against the sites' terms). CHANGE the locations to your area. ---
   - name: LinkedIn Jobs
     url: https://www.linkedin.com/jobs
     kind: job_board
@@ -39,7 +39,7 @@ sources:
     automatic_supported: true
     params: {site: linkedin, location: "Vienna, Austria", distance: 30, results_per_query: 15,
              hours_old: 168, fetch_description: true, pause_seconds: 15}
-    access_restrictions: "Terms forbid scraping. Used only if YOU switch on collection.allow_jobspy. No login."
+    access_restrictions: "Terms forbid scraping (collected via JobSpy, no login). Switch off: collection.allow_jobspy: false"
 
   - name: Indeed
     url: https://www.indeed.com
@@ -48,7 +48,7 @@ sources:
     automatic_supported: true
     params: {site: indeed, location: "Vienna", country_indeed: "Austria", distance: 30,
              results_per_query: 15, hours_old: 168, pause_seconds: 10}
-    access_restrictions: "Terms forbid scraping. Used only if YOU switch on collection.allow_jobspy."
+    access_restrictions: "Terms forbid scraping (collected via JobSpy). Switch off: collection.allow_jobspy: false"
 
   # --- Always keep these two ---
   - name: Email alerts

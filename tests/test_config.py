@@ -16,7 +16,7 @@ def test_settings_load_without_any_secrets(fake_project):
     assert cfg.settings.preferences.min_gross_annual_salary == 35000
     assert cfg.settings.preferences.max_commute_minutes_one_way == 60
     assert cfg.settings.candidate.country and cfg.settings.candidate.cv_strategies
-    assert cfg.settings.collection.allow_jobspy is False          # JobSpy is opt-in
+    assert cfg.settings.collection.allow_jobspy is True           # JobSpy is on by default
 
 
 def test_weights_match_architecture():

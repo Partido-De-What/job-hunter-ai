@@ -32,7 +32,7 @@ The SQLite database is at `%LOCALAPPDATA%/job-hunter/vjh.db` by default (outside
 
 ## 4. Collection
 
-- Plugin collectors: `jsonld_page` (schema.org JobPosting, optional page-text fallback), `pdf_links`, `personio`, `smartrecruiters`, `rss`, `email_alert` (.eml files; links are never opened), `jobspy` (LinkedIn/Indeed/Glassdoor; **off** unless `collection.allow_jobspy` is true, because it scrapes against those sites' terms).
+- Plugin collectors: `jsonld_page` (schema.org JobPosting, optional page-text fallback), `pdf_links`, `personio`, `smartrecruiters`, `rss`, `email_alert` (.eml files; links are never opened), `jobspy` (LinkedIn/Indeed/Glassdoor; **on** by default via `collection.allow_jobspy`, although it scrapes against those sites' terms - each user is told at setup and can switch it off).
 - Polite HTTP client: identifies itself, checks robots.txt before every automated request (unreadable robots.txt = do not fetch), per-host delay, limited retries honouring Retry-After.
 - One failing source never stops a run; runs, errors and per-source status are recorded.
 - Manual import from URL, text or file (.txt/.md/.html/.pdf).

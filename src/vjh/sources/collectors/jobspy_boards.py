@@ -112,8 +112,7 @@ def default_queries(search_terms: dict) -> list[str]:
 def collect(src: SourceConfig, ctx: CollectContext) -> list[CollectedJob]:
     if not ctx.settings.allow_jobspy:
         raise RuntimeError("JobSpy is switched off (collection.allow_jobspy: false in config/settings.yaml). "
-                           "It scrapes LinkedIn/Indeed/Glassdoor against their terms of use: switch it on "
-                           "only if you accept that risk yourself (see README).")
+                           "Set it to true to collect from LinkedIn/Indeed/Glassdoor again (see README).")
     p = src.params
     site = p["site"]
     queries = p.get("queries") or default_queries(ctx.search_terms)
