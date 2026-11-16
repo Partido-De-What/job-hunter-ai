@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..db.tables import (
     ApiUsageRow,
+    ApplicationEventRow,
     ApplicationRow,
     FeedbackRow,
     GeneratedDocumentRow,
@@ -237,3 +238,101 @@ def overview(session: Session, now: datetime, settings) -> dict:
         "due": due_items(session, today, 7), "source_problems": problems,
         "last_run": last_run,
     }
+
+
+# ---------------- progress (Progress page) ----------------
+
+PROGRESS_STEPS = ["Found", "Passed the filter", "Evaluated by AI", "Recommended", "Applied", "Interview", "Offer"]
+_RESPONDED = {"interview", "offer", "rejected"}
+
+
+def _week_start(d: date) -> date:
+    return d - timedelta(days=d.weekday())        # Monday
+
+
+def _reached(session: Session) -> dict[int, set[str]]:
+    """Every status each job's application has ever had (from the append-only history)."""
+    out: dict[int, set[str]] = {}
+    apps = {a.id: a for a in session.scalars(select(ApplicationRow))}
+    for a in apps.values():
+        out[a.job_id] = {a.status}
+        if a.date_submitted:
+            out[a.job_id].add("applied")
+    for e in session.scalars(select(ApplicationEventRow)):
+        a = apps.get(e.application_id)
+        if a is not None:
+            out[a.job_id].add(e.to_status)
+    for s in out.values():                          # interview/offer imply it was sent
+        if s & {"interview", "offer"}:
+            s.add("applied")
+    return out
+
+
+def progress(session: Session, today: date, recommend_min_score: float, weekly_goal: int,
+             weeks: int = 12) -> dict:
+    """Funnel, weekly activity, response rates and the weekly goal. Read-only."""
+    jobs = list(session.scalars(select(JobRow).where(JobRow.status != "duplicate")))
+    evals = _latest_evals(session)
+    reached = _reached(session)
+    apps = list(session.scalars(select(ApplicationRow)))
+
+    def ever(status: str) -> set[int]:
+        return {j for j, s in reached.items() if status in s}
+
+    applied_ids = ever("applied")
+    funnel = {
+        "Found": len(jobs),
+        "Passed the filter": sum(j.status not in ("new", "filtered_out") for j in jobs),
+        "Evaluated by AI": len(evals),
+        "Recommended": sum(ev.overall_score is not None and ev.overall_score >= recommend_min_score
+                           for ev in evals.values()),
+        "Applied": len(applied_ids),
+        "Interview": len(ever("interview")),
+        "Offer": len(ever("offer")),
+    }
+    responded = {a.job_id for a in apps if a.job_id in applied_ids
+                 and ((reached.get(a.job_id, set()) & _RESPONDED) or a.employer_response)}
+    n = len(applied_ids)
+    rates = {"applied": n, "responses": len(responded), "interviews": funnel["Interview"],
+             "offers": funnel["Offer"], "rejections": len(ever("rejected") & applied_ids),
+             "waiting": n - len(responded),
+             "response_rate": round(100 * len(responded) / n) if n else None,
+             "interview_rate": round(100 * funnel["Interview"] / n) if n else None}
+
+    # weekly activity
+    first = _week_start(today) - timedelta(weeks=weeks - 1)
+    weekly = {first + timedelta(weeks=i): {"found": 0, "applied": 0, "interviews": 0} for i in range(weeks)}
+    for j in jobs:
+        if j.discovered_at and (w := _week_start(j.discovered_at.date())) in weekly:
+            weekly[w]["found"] += 1
+    for a in apps:
+        if a.date_submitted and (w := _week_start(a.date_submitted)) in weekly:
+            weekly[w]["applied"] += 1
+    app_job = {a.id: a.job_id for a in apps}
+    seen_interview: set[int] = set()
+    for e in session.scalars(select(ApplicationEventRow).where(ApplicationEventRow.to_status == "interview")
+                             .order_by(ApplicationEventRow.occurred_at)):
+        job = app_job.get(e.application_id)
+        if job in seen_interview:
+            continue
+        seen_interview.add(job)
+        if (w := _week_start(e.occurred_at.date())) in weekly:
+            weekly[w]["interviews"] += 1
+    weekly_df = pd.DataFrame([{"week": w, **v} for w, v in weekly.items()],
+                             columns=["week", "found", "applied", "interviews"])
+
+    # weekly goal and streak (weeks in a row that reached the goal; this week counts once reached)
+    this_week = weekly[_week_start(today)]["applied"]
+    streak = 0
+    if weekly_goal > 0:
+        ordered = sorted(weekly)
+        if this_week >= weekly_goal:
+            streak = 1
+        for w in reversed(ordered[:-1]):
+            if weekly[w]["applied"] < weekly_goal:
+                break
+            streak += 1
+    fb = list(session.scalars(select(FeedbackRow)))
+    return {"funnel": funnel, "rates": rates, "weekly": weekly_df, "this_week_applied": this_week,
+            "weekly_goal": weekly_goal, "streak": streak,
+            "feedback_good": sum(f.accepted for f in fb), "feedback_bad": sum(not f.accepted for f in fb)}

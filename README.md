@@ -343,14 +343,19 @@ The report suggests changes, for example titles to exclude or a different thresh
 vjh dashboard
 ```
 
-It opens at http://127.0.0.1:8501 and works **only on this computer** (usage statistics off). Keep the window open while you use it; **Ctrl+C** stops it.
+It opens at http://127.0.0.1:8501 and works **only on this computer** (usage statistics off). Keep the window open while you use it; **Ctrl+C** stops it. If it is already running, `vjh dashboard` just opens the browser again.
+
+**Desktop icon (Windows):** `vjh shortcut` puts a **Job Hunter AI** icon on your Desktop. Double-click it to open the dashboard (it runs in a minimised window; close that window to stop it). Remove it with `vjh shortcut --remove`.
+
+**Quick actions:** in the job and application tables, tick one or more rows at the left edge. Buttons appear to open the job, rate it (👍 good match / 👎 not for me, with a reason), mark it as applied (only after you really sent it; a follow-up reminder is set) or change its status.
 
 Pages:
 
-- **Overview**
+- **Overview**, with this week's application goal
+- **Progress**: applications this week vs. your goal (`progress: weekly_application_goal` in `config/settings.yaml`), weeks in a row on goal, response and interview rates, found → recommended → applied → interview → offer, the last 12 weeks
 - **Jobs**, with filters
 - **Job details**: eligibility, score, skills, salary, documents, status, feedback
-- **Applications**
+- **Applications**: a board (To review → Documents ready → Applied → Interview → Offer) or a table with quick actions
 - **Documents**: QA reports, downloads, approve or reject
 - **Sources**
 - **Logs & errors**

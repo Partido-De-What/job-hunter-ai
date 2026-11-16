@@ -150,6 +150,10 @@ class AutomationSettings(_Strict):
     db_backups_keep: int = Field(default=10, ge=1)       # newest database backups kept
 
 
+class ProgressSettings(_Strict):
+    weekly_application_goal: int = Field(default=5, ge=0, le=100)   # dashboard Progress page; 0 = no goal
+
+
 class Settings(_Strict):
     candidate: CandidateSettings
     scoring: ScoringSettings
@@ -160,3 +164,4 @@ class Settings(_Strict):
     paths: PathSettings
     collection: CollectionSettings = CollectionSettings()
     automation: AutomationSettings = AutomationSettings()
+    progress: ProgressSettings = ProgressSettings()

@@ -22,7 +22,7 @@ from vjh.models.common import ApplicationStatus, ApprovalStatus
 
 st.set_page_config(page_title="Job Hunter", page_icon="🌱", layout="wide")
 
-PAGES = ["Overview", "Jobs", "Job details", "Applications", "Documents", "Sources", "Logs & errors",
+PAGES = ["Overview", "Progress", "Jobs", "Job details", "Applications", "Documents", "Sources", "Logs & errors",
          "Feedback", "Import a job"]
 APP_STATUSES = [s.value for s in ApplicationStatus]
 CATEGORY_LABEL = {"excellent": "Excellent", "strong": "Strong", "good_potential": "Good potential",
@@ -78,6 +78,12 @@ def page_overview() -> None:
                                                           "documents_generated", "approved")),
                 help="Recommended, under review, documents generated or approved - not yet applied")
     c[4].metric("Applied / interview", ap.get("applied", 0) + ap.get("interview", 0))
+    goal = cfg.settings.progress.weekly_application_goal
+    if goal:
+        with session() as s:
+            done = data.progress(s, date.today(), cfg.settings.thresholds.recommend_min_score, goal,
+                                 weeks=1)["this_week_applied"]
+        st.progress(min(done / goal, 1.0), text=f"🎯 This week: {done} of {goal} applications")
 
     if ov["backend"] == "claude_code":
         st.caption(f"AI usage today: {ov['evaluations_today']} of {ov['subscription_limit']} evaluations "
@@ -124,16 +130,61 @@ def _job_table(df: pd.DataFrame, key: str) -> None:
                "application", "salary", "deadline", "source"]].copy()
     view["category"] = view["category"].map(lambda c: CATEGORY_LABEL.get(c, c))
     view["ineligible"] = view["ineligible"].map(lambda b: "⚠️ mandatory not met" if b else "")
-    st.dataframe(view, hide_index=True,
-                 column_config={"score": st.column_config.ProgressColumn("score", min_value=0, max_value=100,
-                                                                         format="%.0f"),
-                                "ineligible": st.column_config.TextColumn("eligibility")})
-    ids = df["id"].tolist()
-    labels = {int(r.id): f"#{r.id} {r.title[:60]} | {r.employer[:30]}" for r in df.itertuples()}
-    col1, col2 = st.columns([4, 1])
-    chosen = col1.selectbox("Open a job", ids, format_func=lambda i: labels[int(i)], key=f"{key}_pick")
-    col2.write("")
-    col2.button("Open", key=f"{key}_open", on_click=open_job, args=(chosen,))
+    event = st.dataframe(view, hide_index=True, on_select="rerun", selection_mode="multi-row", key=f"{key}_tbl",
+                         column_config={"score": st.column_config.ProgressColumn("score", min_value=0,
+                                                                                 max_value=100, format="%.0f"),
+                                        "ineligible": st.column_config.TextColumn("eligibility")})
+    picked = [int(view.iloc[i]["id"]) for i in event.selection.rows] if event else []
+    _quick_actions(picked, key)
+
+
+def _quick_actions(picked: list[int], key: str) -> None:
+    """Action bar for the rows ticked in a table: open, rate, mark applied, change status."""
+    if not picked:
+        st.caption("☝️ Tick one or more rows (left edge of the table) to open, rate or update them.")
+        return
+    from vjh.dashboard import actions
+    from vjh.tracker.service import TrackerError
+    st.markdown(f"**Selected:** {', '.join(f'#{i}' for i in picked)}")
+    if len(picked) == 1:
+        st.button("📄 Open this job", key=f"{key}_open", on_click=open_job, args=(picked[0],), type="primary")
+    rate_tab, applied_tab, status_tab = st.tabs(["👍 / 👎 Rate", "✉️ I applied", "🔀 Change status"])
+    with rate_tab, st.form(f"{key}_rate"):
+        good = st.radio("Was this a good recommendation?", ["👍 Good match", "👎 Not for me"], horizontal=True)
+        is_good = good.startswith("👍")
+        choice = st.selectbox("Main reason", actions.GOOD_REASONS + actions.BAD_REASONS + ["Other"],
+                              help="Your ratings feed the Feedback page, which suggests better search settings.")
+        extra = st.text_input("Anything to add? (optional)")
+        archive = st.checkbox("Archive it (only for 👎)", value=True)
+        if st.form_submit_button("Save rating"):
+            reason = actions.reason_text("" if choice == "Other" else choice, extra)
+            try:
+                msgs = actions.rate(engine, picked, is_good, reason, archive=archive and not is_good)
+                st.success("Saved: " + "; ".join(msgs))
+            except TrackerError as exc:
+                st.error(str(exc))
+    with applied_tab, st.form(f"{key}_applied"):
+        st.caption("Only after you have really sent the application yourself. A follow-up reminder is set.")
+        when = st.date_input("Date you sent it", value=date.today())
+        if st.form_submit_button("Mark as applied"):
+            _do_status(actions, picked, "applied", when)
+    with status_tab, st.form(f"{key}_status"):
+        new = st.selectbox("New status", APP_STATUSES, index=APP_STATUSES.index("under_review"))
+        note = st.text_input("Note (optional)")
+        if st.form_submit_button("Save status"):
+            _do_status(actions, picked, new, date.today(), note)
+
+
+def _do_status(actions, picked: list[int], status: str, when: date, note: str = "") -> None:
+    from vjh.tracker.service import TrackerError
+    try:
+        msgs, warns = actions.change_status(engine, picked, status, when, note)
+    except TrackerError as exc:
+        st.error(str(exc))
+        return
+    st.success("Saved: " + "; ".join(msgs))
+    for w in warns:
+        st.warning(w)
 
 
 def page_jobs() -> None:
@@ -392,11 +443,104 @@ def page_applications() -> None:
     if not show_closed:
         df = df[~df["status"].isin(["archived", "rejected"])]
     order = {v: i for i, v in enumerate(APP_STATUSES)}
-    df = df.sort_values(by="status", key=lambda c: c.map(order), ascending=False)
-    st.dataframe(df, hide_index=True)
-    if len(df):
-        chosen = st.selectbox("Open", df["job"].tolist(), format_func=lambda i: f"#{i}")
-        st.button("Open job", on_click=open_job, args=(chosen,))
+    df = df.sort_values(by="status", key=lambda c: c.map(order), ascending=False).reset_index(drop=True)
+    view = st.radio("View", ["Board", "Table"], horizontal=True, key="apps_view")
+    if view == "Board":
+        _board(df)
+        return
+    event = st.dataframe(df, hide_index=True, on_select="rerun", selection_mode="multi-row", key="apps_tbl",
+                         column_config={"score": st.column_config.ProgressColumn("score", min_value=0,
+                                                                                 max_value=100, format="%.0f")})
+    _quick_actions([int(df.iloc[i]["job"]) for i in event.selection.rows] if event else [], "apps")
+
+
+BOARD = [("🔎 To review", ("new", "recommended", "under_review")),
+         ("📝 Documents ready", ("documents_generated", "approved")),
+         ("✉️ Applied", ("applied",)), ("🗣️ Interview", ("interview",)), ("🎉 Offer", ("offer",))]
+BOARD_MAX_CARDS = 12
+
+
+def _board(df: pd.DataFrame) -> None:
+    """Applications as cards, one column per stage. Change a stage in the Table view or on the job's page."""
+    cols = st.columns(len(BOARD))
+    for col, (title, statuses) in zip(cols, BOARD, strict=True):
+        part = df[df["status"].isin(statuses)]
+        col.markdown(f"**{title}** · {len(part)}")
+        for r in part.head(BOARD_MAX_CARDS).itertuples():
+            with col.container(border=True):
+                st.markdown(f"**#{r.job}** {r.title[:55]}")
+                bits = [r.employer[:35]]
+                if pd.notna(r.score):
+                    bits.append(f"score {r.score:.0f}")
+                if pd.notna(r.applied):
+                    bits.append(f"sent {r.applied}")
+                if pd.notna(r.follow_up) and r.status == "applied":
+                    bits.append(f"follow up {r.follow_up}")
+                if pd.notna(r.interview):
+                    bits.append(f"interview {pd.Timestamp(r.interview):%d.%m %H:%M}")
+                if pd.notna(r.deadline) and r.status not in ("applied", "interview", "offer"):
+                    bits.append(f"deadline {r.deadline}")
+                st.caption(" · ".join(bits))
+                st.button("Open", key=f"board_{r.job}", on_click=open_job, args=(int(r.job),))
+        if len(part) > BOARD_MAX_CARDS:
+            col.caption(f"+ {len(part) - BOARD_MAX_CARDS} more (Table view)")
+    st.caption("Tip: switch to **Table**, tick jobs and use the buttons to rate them or change their status.")
+
+
+def page_progress() -> None:
+    import altair as alt
+    st.header("Progress")
+    with session() as s:
+        p = data.progress(s, date.today(), cfg.settings.thresholds.recommend_min_score,
+                          cfg.settings.progress.weekly_application_goal)
+    goal, done, r = p["weekly_goal"], p["this_week_applied"], p["rates"]
+    c = st.columns(5)
+    c[0].metric("Applied this week", f"{done} / {goal}" if goal else done)
+    c[1].metric("Weeks in a row on goal", p["streak"] if goal else "–")
+    c[2].metric("Applications sent", r["applied"])
+    c[3].metric("Response rate", f"{r['response_rate']}%" if r["response_rate"] is not None else "–",
+                help="Applications that got an answer (interview, offer, rejection or a reply you recorded)")
+    c[4].metric("Interview rate", f"{r['interview_rate']}%" if r["interview_rate"] is not None else "–")
+    if goal:
+        st.progress(min(done / goal, 1.0), text=("🎯 Weekly goal reached!" if done >= goal
+                                                 else f"{goal - done} more to reach this week's goal"))
+        st.caption("Change the goal in `config/settings.yaml` → `progress: weekly_application_goal`.")
+
+    left, right = st.columns(2)
+    with left:
+        st.subheader("From found to offer")
+        f = pd.DataFrame({"step": list(p["funnel"]), "jobs": list(p["funnel"].values())})
+        base = alt.Chart(f).encode(y=alt.Y("step:N", sort=data.PROGRESS_STEPS, title=None),
+                                   x=alt.X("jobs:Q", title="jobs", scale=alt.Scale(type="symlog")))
+        st.altair_chart(base.mark_bar(color="#2e7d32") + base.mark_text(align="left", dx=4).encode(text="jobs:Q"),
+                        use_container_width=True)
+        st.caption("Log scale, so the small steps at the end stay visible.")
+    with right:
+        st.subheader("Last 12 weeks")
+        wk = p["weekly"].copy()
+        wk["week"] = pd.to_datetime(wk["week"])
+        wk["label"] = wk["week"].dt.strftime("%d %b")
+        sent = wk.melt("label", value_vars=["applied", "interviews"], var_name="what", value_name="count")
+        top = max(goal, int(sent["count"].max() or 0), 1) + 1
+        bars = alt.Chart(sent).mark_bar().encode(
+            x=alt.X("label:N", sort=list(wk["label"]), title="week starting", axis=alt.Axis(labelAngle=-45)),
+            xOffset="what:N",
+            y=alt.Y("count:Q", title="applications", scale=alt.Scale(domain=[0, top]), axis=alt.Axis(tickMinStep=1)),
+            color=alt.Color("what:N", title=None, scale=alt.Scale(range=["#2e7d32", "#f9a825"])))
+        chart = bars
+        if goal:
+            chart = bars + alt.Chart(pd.DataFrame({"goal": [goal]})).mark_rule(
+                strokeDash=[4, 4], color="#9e9e9e").encode(y="goal:Q")
+        st.altair_chart(chart, use_container_width=True)
+        if goal:
+            st.caption("Dashed line: your weekly goal.")
+        st.caption("New jobs found per week: " + " · ".join(f"{int(v)}" for v in wk["found"]))
+
+    a, b, c2 = st.columns(3)
+    a.metric("Waiting for an answer", r["waiting"])
+    b.metric("Rejections", r["rejections"])
+    c2.metric("Your ratings", f"👍 {p['feedback_good']} · 👎 {p['feedback_bad']}")
+    st.button("Go to the application board", on_click=lambda: st.session_state.update(page="Applications"))
 
 
 def page_documents() -> None:
@@ -522,6 +666,6 @@ def _store_import(cj) -> None:
         st.button("Open the job", on_click=open_job, args=(int(r.id),))
 
 
-{"Overview": page_overview, "Jobs": page_jobs, "Job details": page_job_details,
+{"Overview": page_overview, "Progress": page_progress, "Jobs": page_jobs, "Job details": page_job_details,
  "Applications": page_applications, "Documents": page_documents, "Sources": page_sources,
  "Logs & errors": page_logs, "Feedback": page_feedback, "Import a job": page_import}[page]()

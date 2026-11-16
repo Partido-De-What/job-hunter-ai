@@ -52,7 +52,7 @@ The SQLite database is at `%LOCALAPPDATA%/job-hunter/vjh.db` by default (outside
 ## 7. Tracking, dashboard, automation
 
 - Tracker: automatic forward-only steps up to `approved`; `applied` and later are always manual. Due list for follow-ups, interviews and deadlines. Feedback report suggests configuration changes but never applies them.
-- Dashboard: Streamlit on 127.0.0.1, usage statistics off, no Deploy button; actions reuse the same services as the CLI.
+- Dashboard: Streamlit on 127.0.0.1, usage statistics off, no Deploy button; actions reuse the same services as the CLI. Quick actions on ticked rows (native row selection); a Progress page (funnel from the append-only history, weekly goal, response/interview rates; Altair charts); an Applications board built from native columns (drag-and-drop kanban components were not used: they would bypass the tracker's rules). `vjh shortcut` creates a Windows Desktop icon; a second start only reopens the browser.
 - Daily routine (`vjh run-daily`): collect → filter → evaluate → auto documents (new, eligible jobs ≥ threshold, limited per day, drafts only) → housekeeping (old logs, surplus backups) → HTML report (autoescaped, only http(s) links) → email to the user only (TLS required, no attachments, skipped on quiet days).
 - Windows Task Scheduler via task XML: runs as the user while logged on, least privilege, catches up missed runs, no overlap, 2-hour limit, no console window.
 

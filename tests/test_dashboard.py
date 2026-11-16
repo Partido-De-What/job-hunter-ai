@@ -124,7 +124,7 @@ def _run(page: str, **state):
     return at
 
 
-@pytest.mark.parametrize("page", ["Overview", "Jobs", "Job details", "Applications", "Documents", "Sources",
+@pytest.mark.parametrize("page", ["Overview", "Progress", "Jobs", "Job details", "Applications", "Documents", "Sources",
                                   "Logs & errors", "Feedback", "Import a job"])
 def test_every_page_renders(app_env, page):
     at = _run(page)
@@ -143,3 +143,86 @@ def test_job_details_and_status_form(app_env):
     with Session(engine) as s:
         assert [e.to_status for e in history(s, 1)][-1] == "under_review"
     engine.dispose()
+
+
+# ---------------- progress, quick actions, desktop shortcut ----------------
+
+def test_progress_funnel_rates_and_goal(db):
+    from vjh.dashboard import actions
+    today = date(2026, 11, 18)                      # Wednesday; week starts Monday 16.11
+    actions.change_status(db, [1], "applied", date(2026, 11, 16))
+    actions.change_status(db, [1], "interview", date(2026, 11, 17))
+    actions.change_status(db, [2], "applied", date(2026, 11, 10))     # previous week
+    actions.rate(db, [3], False, "Wrong field", archive=True)
+    with Session(db) as s:
+        p = data.progress(s, today, 70, weekly_goal=1, weeks=4)
+    f = p["funnel"]
+    assert f["Found"] == 3 and f["Passed the filter"] == 2 and f["Evaluated by AI"] == 2
+    assert f["Recommended"] == 1 and f["Applied"] == 2 and f["Interview"] == 1 and f["Offer"] == 0
+    r = p["rates"]
+    assert r["responses"] == 1 and r["response_rate"] == 50 and r["interview_rate"] == 50 and r["waiting"] == 1
+    assert p["this_week_applied"] == 1 and p["streak"] == 2              # this week and last week
+    assert p["feedback_bad"] == 1 and list(p["weekly"]["applied"]) == [0, 0, 1, 1]
+    with Session(db) as s:
+        assert data.progress(s, today, 70, weekly_goal=0)["streak"] == 0
+
+
+def test_quick_actions_keep_the_tracker_rules(db):
+    from vjh.dashboard import actions
+    from vjh.tracker.service import TrackerError
+    with pytest.raises(TrackerError):                                    # a reason is required
+        actions.rate(db, [1], True, actions.reason_text("", ""))
+    msgs = actions.rate(db, [1, 2], True, actions.reason_text("Interesting employer", "seed breeding"))
+    assert len(msgs) == 2
+    msgs, warns = actions.change_status(db, [1], "applied", date(2026, 11, 16))
+    assert "follow-up reminder 2026-11-26" in msgs[0] and warns          # no approved documents yet
+    with Session(db) as s:
+        assert [e.to_status for e in history(s, 1)][-1] == "applied"
+    assert actions.reason_text("Wrong field", " too chemical ") == "Wrong field: too chemical"
+
+
+def test_shortcut_install_uses_powershell_and_draws_icon(tmp_path, monkeypatch):
+    import sys
+
+    from vjh.automation import shortcut
+    calls = []
+
+    def fake_ps(script, env):
+        calls.append(env)
+        return r"C:\Users\x\Desktop\Job Hunter AI.lnk"
+    monkeypatch.setattr(shortcut, "_powershell", fake_ps)
+    monkeypatch.setattr(shortcut, "vjh_executable", lambda: Path(r"C:\proj\.venv\Scripts\vjh.exe"))
+    monkeypatch.setattr(sys, "platform", "win32")
+    out = shortcut.install(tmp_path / "proj", tmp_path / "data")
+    assert out.endswith("Job Hunter AI.lnk")
+    env = calls[0]
+    assert env["VJH_LNK_TARGET"].endswith("vjh.exe") and env["VJH_LNK_DIR"] == str(tmp_path / "proj")
+    assert (tmp_path / "data" / "vjh.ico").stat().st_size > 0
+
+
+def test_dashboard_already_running_just_opens_browser(monkeypatch, tmp_path):
+    import subprocess
+    import webbrowser
+
+    from vjh import cli_track
+    opened = []
+    monkeypatch.setattr(cli_track, "_port_in_use", lambda port: True)
+    monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url))
+    monkeypatch.setattr(subprocess, "call", lambda *a, **k: pytest.fail("must not start a second server"))
+    assert cli_track.cmd_dashboard(load_config(Path(__file__).resolve().parents[1]), 8501) == 0
+    assert opened == ["http://127.0.0.1:8501"]
+
+
+def test_board_and_table_views_render(app_env):
+    from vjh.dashboard import actions
+    engine = migrate.make_engine(load_config().db_path)
+    actions.change_status(engine, [1], "applied", date(2026, 11, 16))
+    actions.change_status(engine, [2], "recommended")
+    engine.dispose()
+    at = _run("Applications")
+    assert any("Applied" in m.value for m in at.markdown)
+    assert any(b.label == "Open" for b in at.button)
+    at = _run("Applications", apps_view="Table")
+    assert not at.exception
+    at = _run("Progress")
+    assert at.metric[2].value == "1"                                     # applications sent

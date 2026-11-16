@@ -53,15 +53,48 @@ def add_parsers(sub) -> None:
 
     d = sub.add_parser("dashboard", help="Open the local dashboard in your browser")
     d.add_argument("--port", type=int, default=8501)
+    sc = sub.add_parser("shortcut", help="Put a 'Job Hunter AI' icon on your Desktop that opens the dashboard")
+    sc.add_argument("--remove", action="store_true", help="Remove the Desktop icon")
+
+
+def _port_in_use(port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def cmd_shortcut(cfg: AppConfig, remove: bool) -> int:
+    from .automation import shortcut
+    try:
+        if remove:
+            path = shortcut.remove()
+            _ok(f"Removed {path}" if path else "There was no Desktop icon to remove.")
+        else:
+            path = shortcut.install(cfg.root, cfg.data_dir)
+            _ok(f"Desktop icon created: {path}")
+            print("  Double-click it to open the dashboard. A minimised window keeps it running;\n"
+                  "  close that window (taskbar) to stop it. Remove the icon with: vjh shortcut --remove")
+    except RuntimeError as exc:
+        _fail(str(exc))
+        return 1
+    return 0
 
 
 def cmd_dashboard(cfg: AppConfig, port: int) -> int:
-    """Start Streamlit on this computer only (127.0.0.1), without usage statistics."""
+    """Start Streamlit on this computer only (127.0.0.1), without usage statistics.
+    If it is already running on that port, just open the browser."""
     import os
     import subprocess
     import sys
+    import webbrowser
     from pathlib import Path
 
+    url = f"http://127.0.0.1:{port}"
+    if _port_in_use(port):
+        print(f"  The dashboard is already running: opening {url}")
+        webbrowser.open(url)
+        return 0
     app = Path(__file__).parent / "dashboard" / "app.py"
     env = {**os.environ, "VJH_HOME": str(cfg.root)}
     cmd = [sys.executable, "-m", "streamlit", "run", str(app), "--server.address", "127.0.0.1",
@@ -191,6 +224,8 @@ def cmd_due(engine, days: int) -> int:
 
 
 def dispatch(cfg: AppConfig, args) -> int | None:
+    if args.command == "shortcut":
+        return cmd_shortcut(cfg, args.remove)
     if args.command == "dashboard":
         if migrate.current_revision(cfg.db_path) != migrate.head_revision():
             _fail("Database missing or out of date. Run: vjh init")

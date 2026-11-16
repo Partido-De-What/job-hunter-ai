@@ -125,6 +125,9 @@ automation:
   log_retention_days: 90           # delete run logs (data/logs) older than this; nothing else is deleted
   db_backups_keep: 10              # keep the newest N database backups (vjh.db.bak-*)
 
+progress:
+  weekly_application_goal: 5       # dashboard "Progress" page: applications you aim to send per week (0 = no goal)
+
 paths:
   data_dir: data
   personal_dir: personal
