@@ -1,0 +1,29 @@
+# FAKE profile for tests only. Contains no real personal data.
+profile_version: 1
+personal:
+  full_name: Test Person
+  nationalities: [Testland]
+experiences:
+  - id: exp_lab
+    employer: Example Lab GmbH
+    title: Lab Technician
+    start: 2023-01
+    end: 2024-06
+    priority_profiles: [B]
+    evidence_ids: [EV-LAB-001]
+education:
+  - id: edu_msc
+    degree: Master of Science
+    field: Biology
+    institution: Example University
+    completed: 2022-09
+    evidence_ids: [EV-EDU-001]
+languages:
+  - {language: English, level: C1, evidence_ids: [EV-LANG-001]}
+  - {language: German, level: A2, evidence_ids: [EV-LANG-002]}
+evidence:
+  - {id: EV-LAB-001, claim: "Ran PCR assays", supporting_experience: exp_lab, source: cv, confidence: high, verification_status: verified}
+  - {id: EV-EDU-001, claim: "MSc Biology", supporting_experience: edu_msc, source: cv, confidence: high, verification_status: verified}
+  - {id: EV-LANG-001, claim: "English C1", supporting_experience: languages, source: cv, confidence: high, verification_status: verified}
+  - {id: EV-LANG-002, claim: "German A2", supporting_experience: languages, source: user, confidence: high, verification_status: verified}
+todos: []

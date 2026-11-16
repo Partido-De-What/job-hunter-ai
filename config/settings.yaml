@@ -1,0 +1,130 @@
+# Job Hunter AI — settings. NO secrets here (they go in .env).
+# Paths: relative paths are relative to the project folder; %VARS% are expanded.
+#
+# >>> THE VALUES BELOW ARE A WORKED EXAMPLE (a life-science job search around Vienna, Austria). <<<
+# Replace everything under `candidate:` and `preferences:` with your own situation, or ask
+# Claude Code to do it with you (see CLAUDE.md, "New user setup").
+
+candidate:
+  country: Austria                        # where you are looking for work
+  # Your field, in a few words. Used to judge career relevance.
+  career_focus: "life sciences: plant science, molecular biology, biotechnology and laboratory quality control"
+  # How your home city is written in each document language (for the letter's place and date line).
+  home_city_names: {en: Vienna, de: Wien, it: Vienna}
+  # Location filter (regular expressions, case-insensitive). A job whose location matches a
+  # foreign pattern and none of the local ones is set aside. Leave both empty to switch it off.
+  local_place_patterns: [austria, österreich, '\bat\b', '\baut\b', wien, vienna, niederösterreich,
+                         lower austria, klosterneuburg, tulln, mödling, 'st\.? pölten', krems, linz, graz,
+                         salzburg, innsbruck, klagenfurt]
+  foreign_place_patterns: [germany, deutschland, switzerland, schweiz, united states, '\busa\b',
+                           united kingdom, '\buk\b', france, italy, netherlands, belgium, spain, poland,
+                           czech, hungary, slovakia]
+  # Up to a few CV versions, each emphasising different experience. The AI picks one per job
+  # and may combine them. Keys are single capital letters.
+  cv_strategies:
+    A: "Plant science and agronomy: breeding, field trials, crop genetics, phenotyping."
+    B: "Molecular biology and laboratory research: PCR, genotyping, reporter lines, plant physiology."
+    C: "Biotechnology and quality control: QC testing, soil and water analysis, laboratory procedures."
+  # What the CV header shows. Austria/Germany: photo + birth date are usual.
+  # UK, Ireland, USA, Canada: set photo and date_of_birth to false.
+  cv_conventions: {photo: true, date_of_birth: true, nationality: true, work_permit: true, driving_licence: true}
+  # Words that name each language (in several languages) - used to check that documents never
+  # claim a higher level than your profile states. Add the languages you know.
+  language_aliases:
+    English: [english, englisch, inglese, anglais, inglés]
+    German: [german, deutsch, tedesc, allemand, alemán]
+    Italian: [italian, italienisch, italiano, italien]
+    Dutch: [dutch, niederländisch, nederlands, olandese, néerlandais]
+    French: [french, französisch, français, francese, francés]
+    Spanish: [spanish, spanisch, español, spagnolo, espagnol]
+
+scoring:
+  # Points per dimension. Must sum to 100.
+  weights:
+    professional_experience: 25
+    education: 20
+    technical_skills: 20
+    responsibility_alignment: 15
+    language_compatibility: 10
+    location_practical: 5
+    career_development: 5
+  # Prioritisation categories, not hiring probabilities. Ordered high → low.
+  categories:
+    - {name: excellent,      min_score: 90}
+    - {name: strong,         min_score: 80}
+    - {name: good_potential, min_score: 70}
+    - {name: possible,       min_score: 60}
+    - {name: low_priority,   min_score: 0}
+
+thresholds:
+  recommend_min_score: 70
+  generate_documents_min_score: 80
+  max_job_age_days: 45
+
+preferences:
+  primary_locations: [Vienna]             # EXAMPLE - your city / region
+  secondary_locations: [Lower Austria]    # EXAMPLE
+  min_gross_annual_salary: 35000          # EXAMPLE - jobs whose advertised MAXIMUM is lower are set aside (0 = off)
+  salary_currency: EUR
+  max_commute_minutes_one_way: 60
+  document_languages: [en, de]            # en, de, it are supported for CV/letter labels
+
+llm:
+  # How the AI is reached:
+  #   claude_code = your Claude subscription through the Claude Code CLI (no API key, no extra bill;
+  #                 counts against your plan's usage limits). One-time setup: `claude auth login`.
+  #   api         = Anthropic API key in .env (billed per call, limited by daily_cost_cap_usd).
+  backend: claude_code
+  subscription_daily_max_jobs: 40   # claude_code only: protects your plan's usage limits
+  cli_timeout_seconds: 600
+  # Model for job evaluation and document writing. Cheaper options: claude-sonnet-5-5, claude-haiku-5-5.
+  screening_model: claude-opus-5-5
+  strong_model: claude-opus-5-5
+  effort: medium                 # how hard the model thinks: low | medium | high
+  max_output_tokens: 16000
+  daily_cost_cap_usd: 1.00       # api backend: evaluation stops for the day at this cost
+  max_retries: 3
+  refusal_fallback: true         # api backend: on a policy refusal the API retries on another model
+  max_failures_per_job: 2        # stop retrying a job whose evaluation keeps failing
+  # USD per 1M tokens (Anthropic list prices, 2026-11). Cache writes cost 1.25x input.
+  prices:
+    claude-opus-5-5:   {input: 4.00, output: 20.00, cache_read: 0.20}
+    claude-opus-5:     {input: 5.00, output: 25.00, cache_read: 0.50}
+    claude-opus-4-8:   {input: 5.00, output: 25.00, cache_read: 0.50}
+    claude-sonnet-5-5: {input: 2.00, output: 10.00, cache_read: 0.10}
+    claude-sonnet-5:   {input: 2.00, output: 10.00, cache_read: 0.20}
+    claude-haiku-5-5:  {input: 0.10, output: 0.50,  cache_read: 0.01}
+
+database:
+  # Kept outside OneDrive/Dropbox on purpose: syncing can corrupt an open SQLite file.
+  # Override with the VJH_DB_PATH environment variable if needed.
+  path: "%LOCALAPPDATA%/job-hunter/vjh.db"
+
+collection:
+  # Polite web access. robots.txt is always checked before automated requests.
+  user_agent: "JobHunter-personal-job-search/1.0 (non-commercial; respects robots.txt)"
+  min_delay_seconds: 3        # wait between requests to the same website
+  timeout_seconds: 20
+  max_retries: 2              # only for 429 / 5xx answers, with backoff
+  max_pages_per_source: 30    # hard cap on detail pages fetched per source per run
+  accept_language: "de-AT,de;q=0.9,en;q=0.8"   # EXAMPLE: languages you prefer pages in
+  # JobSpy (LinkedIn / Indeed / Glassdoor) scrapes sites whose terms of use forbid it.
+  # It stays OFF unless you decide to accept that risk yourself (see README, "JobSpy").
+  allow_jobspy: false
+
+automation:
+  # Daily routine (vjh run-daily), scheduled with: vjh schedule install
+  daily_time: "07:30"              # when Windows starts it (missed runs start when the PC is on again)
+  task_name: "Job Hunter daily"
+  auto_documents: true             # CV + cover letter for new jobs scoring >= thresholds.generate_documents_min_score
+  auto_documents_max_per_day: 2    # protects your Claude plan's usage limits
+  email_enabled: true              # mail settings go in .env (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, NOTIFY_TO)
+  email_only_when_news: true       # no email on days with nothing new, nothing due and no errors
+  report_days_back: 1              # the report covers jobs found in the last N days
+  log_retention_days: 90           # delete run logs (data/logs) older than this; nothing else is deleted
+  db_backups_keep: 10              # keep the newest N database backups (vjh.db.bak-*)
+
+paths:
+  data_dir: data
+  personal_dir: personal
+  cv_dir: cv

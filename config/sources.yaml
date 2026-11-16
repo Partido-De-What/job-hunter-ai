@@ -1,0 +1,65 @@
+# Source registry. EXAMPLE entries - replace them with sources for YOUR field and region.
+#
+# collector:  none | email_alert | manual | personio | smartrecruiters | rss | jsonld_page | pdf_links | jobspy
+# automatic_supported: true only after `vjh sources check` showed robots.txt allows access and the
+# page offers usable job data. Claude Code can research and check sources with you (CLAUDE.md).
+#
+# Collectors:
+#   personio        official Personio XML feed        params: {company: <slug>}
+#   smartrecruiters official SmartRecruiters API      params: {company: <id>, country: <2-letter>}
+#   rss             public RSS/Atom feed              params: {feed_url: ..., employer: ...}
+#   jsonld_page     career page with job links        params: {link_pattern: <regex>, employer: ..., text_fallback: true|false}
+#   pdf_links       one PDF notice per vacancy        params: {link_pattern: <regex>, employer: ...}
+#   email_alert     saved job-alert emails (.eml) in data/imports/alerts
+#   jobspy          LinkedIn/Indeed/Glassdoor - OFF unless collection.allow_jobspy is true (your decision)
+
+sources:
+  # --- Example: a research institute whose job pages publish structured data (schema.org JobPosting) ---
+  - name: ISTA
+    url: https://ista.ac.at/en/jobs/open-positions/
+    kind: academic
+    collector: jsonld_page
+    automatic_supported: true
+    params: {link_pattern: "/en/job/", employer: "Institute of Science and Technology Austria (ISTA)"}
+    access_restrictions: "EXAMPLE (Austria). robots.txt allowed it when checked; re-check with: vjh sources check"
+    update_frequency: daily
+
+  # --- Example: a job board without a feed - use its email alerts ---
+  - name: karriere.at
+    url: https://www.karriere.at/jobs
+    kind: job_board
+    collector: email_alert
+    access_restrictions: "EXAMPLE (Austria). No official feed: use job-alert emails."
+
+  # --- JobSpy: skipped unless collection.allow_jobspy is true (scraping against the sites' terms) ---
+  - name: LinkedIn Jobs
+    url: https://www.linkedin.com/jobs
+    kind: job_board
+    collector: jobspy
+    automatic_supported: true
+    params: {site: linkedin, location: "Vienna, Austria", distance: 30, results_per_query: 15,
+             hours_old: 168, fetch_description: true, pause_seconds: 15}
+    access_restrictions: "Terms forbid scraping. Used only if YOU switch on collection.allow_jobspy. No login."
+
+  - name: Indeed
+    url: https://www.indeed.com
+    kind: job_board
+    collector: jobspy
+    automatic_supported: true
+    params: {site: indeed, location: "Vienna", country_indeed: "Austria", distance: 30,
+             results_per_query: 15, hours_old: 168, pause_seconds: 10}
+    access_restrictions: "Terms forbid scraping. Used only if YOU switch on collection.allow_jobspy."
+
+  # --- Always keep these two ---
+  - name: Email alerts
+    url: file://data/imports/alerts
+    kind: alerts
+    collector: email_alert
+    access_restrictions: "Local files only."
+    notes: "Any saved job-alert email (.eml). The job board is detected from the email."
+
+  - name: Manual import
+    url: file://manual
+    kind: alerts
+    collector: manual
+    access_restrictions: "User-provided URL, text or file."

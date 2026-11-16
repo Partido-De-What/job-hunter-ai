@@ -1,0 +1,8 @@
+# EXAMPLE - copy to personal/home_location.yaml (private, never committed) and use your own address.
+# Used only in your own CV and letter header. Never sent to the AI.
+street: Example Street 1
+postcode: "1000"
+city: Example City
+country: Example Country
+latitude: null
+longitude: null

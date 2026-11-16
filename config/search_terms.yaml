@@ -1,0 +1,179 @@
+# Search terms. >>> EXAMPLE for a life-science job search in a German-speaking country. <<<
+# Replace them with words for YOUR field and the languages of YOUR job market (the list
+# names "german" / "english" are only labels - use any languages). Claude Code can draft
+# them with you from your profile (CLAUDE.md, "New user setup").
+#
+# - core_queries: short searches used by query-based sources (e.g. JobSpy, if you enable it)
+# - relevance: the free Stage 1 filter. A job passes if its TITLE matches a title pattern or its
+#   TEXT contains at least `min_topic_matches` topic patterns. exclude_title_patterns sets aside
+#   titles that need a degree or status you do not have.
+
+german:
+  - Pflanzenzüchtung
+  - Pflanzenzüchter
+  - Züchtung
+  - Agrarwissenschaften
+  - Agronomie
+  - Pflanzenbau
+  - Pflanzenbiotechnologie
+  - Biotechnologie
+  - Molekularbiologie
+  - Genetik
+  - Pflanzenphysiologie
+  - Pflanzenforschung
+  - Saatgut
+  - Saatzucht
+  - Laborant
+  - Labortechniker
+  - Biologielaborant
+  - Chemielaborant
+  - Laborassistent
+  - Forschungsassistent
+  - Technischer Assistent
+  - Biologisch-technischer Assistent
+  - Versuchstechniker
+  - Versuchswesen
+  - Feldversuche
+  - Gewächshaus
+  - Qualitätskontrolle
+  - Qualitätssicherung
+  - Bodenanalytik
+  - Umweltanalytik
+
+english:
+  - plant breeding
+  - plant breeder
+  - breeding technician
+  - agronomy
+  - agronomist
+  - crop science
+  - crop genetics
+  - plant genetics
+  - plant biotechnology
+  - plant molecular biology
+  - molecular biology
+  - plant physiology
+  - seed science
+  - seed production
+  - agricultural research
+  - field trials
+  - phenotyping
+  - greenhouse
+  - research technician
+  - laboratory technician
+  - lab technician
+  - research assistant
+  - technical assistant
+  - quality control
+  - QC analyst
+  - biotechnology
+  - environmental biotechnology
+  - soil analysis
+
+# ---------- Stage 1 relevance filter (Phase 3) ----------
+# A job passes if its TITLE matches one title pattern, or its TEXT contains at least
+# `min_topic_matches` different topic patterns. Patterns are regular expressions,
+# matched case-insensitively at the start of a word (so "labor" matches "Laborant").
+relevance:
+  min_topic_matches: 3
+  # Titles that need a degree/status the candidate does not have. Set aside BEFORE the AI
+  # (saves money); still visible with `vjh jobs --status filtered_out`. Remove a line to allow it.
+  exclude_title_patterns:
+    - "post-?doc"                                     # requires a PhD
+    - "postdoctoral"
+    - "master'?s?['’]? (?:thesis|student|internship|position)"   # for current MSc students
+    - "masterarbeit"
+    - "bachelor'?s? thesis|bachelorarbeit"
+    - "professor|tenure.track|laufbahnstelle"
+    - "lehrberuf|lehrling|lehrstelle|apprentice"
+  title_patterns:
+    - pflanz
+    - agrar
+    - agronom
+    - saat
+    - züch
+    - zucht
+    - labor
+    - lab\b
+    - biolog
+    - biotech
+    - bioinform
+    - molekul
+    - molecul
+    - genet
+    - genom
+    - qualitätskontroll
+    - qualitätssicherung
+    - quality control
+    - qc\b
+    - analyt
+    - research
+    - forschung
+    - scientist
+    - wissenschaftl
+    - crop
+    - seed
+    - plant\b
+    - plant (?:scien|bio|breed|path|physio)
+    - breed
+    - phenotyp
+    - greenhouse
+    - gewächshaus
+    - soil
+    - boden
+    - mikrobio
+    - microbio
+    - chemi
+    - pharma
+    - life scien
+    - postdoc
+    - phd\b
+    - technical assistant
+    - technische[rn]? assist
+    - versuch
+    - feldversuch
+    - umwelt
+    - environment
+  topic_patterns:
+    - pcr\b
+    - genotyp
+    - molekularbiolog
+    - molecular biolog
+    - pflanze
+    - plants?\b
+    - agronom
+    - züchtung
+    - breeding
+    - biotechnolog
+    - laborator
+    - laborarbeit
+    - qualitätskontroll
+    - quality control
+    - hplc
+    - field trial
+    - feldversuch
+    - seeds?\b
+    - saatgut
+    - mikrobiolog
+    - microbiolog
+    - cell culture
+    - zellkultur
+    - assay
+    - genetic
+    - genetik
+    - arabidopsis
+    - wheat
+    - weizen
+    - crop
+    - phenotyp
+    - gewächshaus
+    - greenhouse
+    - soil
+    - bodenanalys
+    - gmp\b
+    - sop\b
+
+# Job titles used when a source needs a short query.
+core_queries:
+  de: [Pflanzenzüchtung, Labortechniker, Molekularbiologie, Biotechnologie, Qualitätskontrolle Labor]
+  en: [plant breeding, laboratory technician, molecular biology, biotechnology, research technician]

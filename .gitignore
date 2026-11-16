@@ -1,0 +1,31 @@
+# --- Personal data: NEVER commit (see CLAUDE.md) ---
+cv/
+personal/
+data/
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Python / tools ---
+.ruff_cache/
+.coverage
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# --- Claude Code personal settings (launch.json is shared and safe) ---
+.claude/settings.local.json
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store

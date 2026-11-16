@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dashboard",
+      "runtimeExecutable": ".venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "streamlit", "run", "src\\vjh\\dashboard\\app.py",
+                      "--server.address", "127.0.0.1", "--server.port", "8501",
+                      "--browser.gatherUsageStats", "false", "--server.headless", "true",
+                      "--client.toolbarMode", "minimal"],
+      "port": 8501
+    }
+  ]
+}

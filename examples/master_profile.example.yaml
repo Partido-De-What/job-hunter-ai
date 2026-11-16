@@ -1,0 +1,79 @@
+# EXAMPLE MASTER PROFILE - a FICTIONAL person, to show the format.
+# Copy it to personal/master_profile.yaml and replace everything with YOUR facts,
+# or let Claude Code build it from your CV (see CLAUDE.md, "New user setup").
+#
+# Rules:
+# - Every fact is an evidence item with an ID (EV-<GROUP>-<3 digits>), a source and a status.
+# - Experiences, education and languages point to their evidence IDs.
+# - verification_status: verified (you confirmed it) | source_only (from your CV, not confirmed) | todo
+# - Language levels are the truth: documents never claim more than stated here.
+# - private_notes are for you only: never sent to the AI, never printed.
+
+profile_version: 1
+
+personal:
+  full_name: Alex Example
+  email: alex.example@example.com
+  phone: "+00 000 000000"
+  nationalities: [Portuguese]
+  right_to_work: true
+  right_to_work_note: "EU citizen - no permit needed"
+  date_of_birth: "1996-04-12"             # leave null if your country's CVs don't show it
+  photo_path: "cv/photo.jpg"              # null for no photo
+
+experiences:
+  - id: exp_lab
+    employer: Example Diagnostics Ltd
+    title: Laboratory Technician
+    location: Porto, Portugal
+    employment_type: full-time, fixed-term
+    start: 2023-03
+    end: 2025-08
+    current: false
+    priority_profiles: [B]
+    evidence_ids: [EV-LAB-001, EV-LAB-002, EV-LAB-003]
+    private_notes:
+      - "Gross salary 1,600 EUR/month (for my own reference only)."
+
+  - id: exp_intern
+    employer: University of Example
+    title: Research Intern, Plant Biology Lab
+    location: Lisbon, Portugal
+    start: 2022-02
+    end: 2022-09
+    current: false
+    priority_profiles: [A]
+    evidence_ids: [EV-INT-001, EV-INT-002]
+
+education:
+  - id: edu_msc
+    degree: Master of Science
+    field: Biotechnology
+    institution: University of Example
+    completed: 2022-10
+    evidence_ids: [EV-EDU-001, EV-EDU-002]
+
+languages:
+  - {language: Portuguese, level: native, evidence_ids: [EV-LANG-001]}
+  - {language: English, level: C1, certified: true, certificate: "Cambridge English: C1 Advanced", evidence_ids: [EV-LANG-002]}
+  - {language: German, level: A2, note: "actively learning", evidence_ids: [EV-LANG-003]}
+
+skills: [EV-SKILL-001, EV-SKILL-002]
+
+evidence:
+  - {id: EV-LAB-001, claim: "Performed PCR and qPCR assays for routine diagnostics", supporting_experience: exp_lab, source: cv, source_detail: "CV, job 1, bullet 1", confidence: high, verification_status: verified}
+  - {id: EV-LAB-002, claim: "Worked to ISO 15189 quality procedures and documented results in the LIMS", supporting_experience: exp_lab, source: cv, source_detail: "CV, job 1, bullet 2", confidence: high, verification_status: verified}
+  - {id: EV-LAB-003, claim: "Calibrated and maintained pipettes, centrifuges and pH meters", supporting_experience: exp_lab, source: user, source_detail: "Answer to setup question", confidence: high, verification_status: verified}
+  - {id: EV-INT-001, claim: "Grew and phenotyped Arabidopsis thaliana under drought stress", supporting_experience: exp_intern, source: cv, source_detail: "CV, internship", confidence: high, verification_status: source_only}
+  - {id: EV-INT-002, claim: "Genotyped mutant lines by PCR and gel electrophoresis", supporting_experience: exp_intern, source: cv, source_detail: "CV, internship", confidence: high, verification_status: source_only}
+  - {id: EV-EDU-001, claim: "MSc in Biotechnology, University of Example, 2022", supporting_experience: edu_msc, source: cv, confidence: high, verification_status: verified}
+  - {id: EV-EDU-002, claim: "MSc thesis topic investigated: drought-stress signalling in Arabidopsis roots", supporting_experience: edu_msc, source: user, confidence: high, verification_status: verified, notes: "A topic investigated, not a result."}
+  - {id: EV-LANG-001, claim: "Portuguese: native", supporting_experience: languages, source: cv, confidence: high, verification_status: verified}
+  - {id: EV-LANG-002, claim: "English: C1, Cambridge English: C1 Advanced", supporting_experience: languages, source: user, confidence: high, verification_status: verified}
+  - {id: EV-LANG-003, claim: "German: A2, no certificate, actively learning", supporting_experience: languages, source: user, confidence: high, verification_status: verified}
+  - {id: EV-SKILL-001, claim: "MS Office (Word, Excel, PowerPoint): advanced", supporting_experience: general, source: user, confidence: high, verification_status: verified}
+  - {id: EV-SKILL-002, claim: "Driving licence (category B)", supporting_experience: general, source: user, confidence: high, verification_status: verified}
+
+# Open questions for you (answer them, update the facts, then delete the item).
+todos:
+  - {id: TODO-001, field: experiences.exp_intern.end, question: "Did the internship end in September or October 2022?", cv_says: "09/2022", spec_says: ""}
