@@ -290,7 +290,9 @@ def page_job_details() -> None:
         score_badge(ev.overall_score if ev else None, ev.category if ev else None),
         f":violet-badge[AI: {ev.recommendation}]" if ev else "",
         f":gray-badge[:material/flag: {(app.status if app else 'not tracked').replace('_', ' ')}]",
-        ":red-badge[:material/warning: mandatory not met]" if ev and ev.potentially_ineligible else ""] if b))
+        ":red-badge[:material/warning: mandatory not met]" if ev and ev.potentially_ineligible else "",
+        f"[:blue-badge[:material/description: {len(d['documents'])} document(s) ready]](#documents)"
+        if d["documents"] else ""] if b))
     c = st.columns([1, 3])
     c[0].metric("Score", f"{ev.overall_score:.0f}" if ev else "-", border=True)
     summary = (ev.explanation or "") if ev else "Not evaluated yet."
@@ -346,12 +348,19 @@ def page_job_details() -> None:
     with st.expander("Job advertisement text"):
         st.text(j.description or "(no text)")
 
-    st.subheader("Documents")
+    st.subheader("Documents", anchor="documents")
+    for kind, msg in st.session_state.pop(f"genmsg{j.id}", []):
+        getattr(st, kind)(msg)
     if d["documents"]:
+        folder = Path(d["documents"][-1].file_path).parent
+        top = st.columns([3, 1])
+        top[0].caption(f"{len(d['documents'])} document(s) in `{folder}`, newest first.")
+        if folder.exists() and top[1].button("Open folder", key=f"fold{j.id}", icon=":material/folder_open:"):
+            _open_file(folder)
         _keyword_match(d["documents"], ai)
         _documents_list(d["documents"], key=f"jd{j.id}")
     else:
-        st.caption("No documents yet.")
+        st.caption("No documents yet. Create them below; they appear here as soon as they are ready.")
     with st.form(f"gen{j.id}"):
         g1, g2 = st.columns(2)
         langs = g1.multiselect("Languages", ["en", "de", "it"], default=["en"])
@@ -382,7 +391,12 @@ def _keyword_match(docs, ai: dict | None) -> None:
     if not keywords or not cvs:
         return
     newest = max(cvs, key=lambda x: (x.created_at, x.id))
-    present, missing = keyword_coverage(docx_text(Path(newest.file_path)), keywords)
+    try:
+        text = docx_text(Path(newest.file_path))
+    except Exception:  # noqa: BLE001 - a damaged or locked file must not break the page
+        st.caption(f"ATS keyword check skipped: could not read {Path(newest.file_path).name}.")
+        return
+    present, missing = keyword_coverage(text, keywords)
     share = len(present) / (len(present) + len(missing))
     with st.container(border=True):
         st.markdown(f"**:material/manage_search: ATS keyword match** · CV v{newest.version} ({newest.language}): "
@@ -410,13 +424,18 @@ def _generate(job_id: int, langs: list[str], kinds: list[str]) -> None:
                                    kinds=kinds, out_root=cfg.data_dir / "documents", photo=_photo(cfg, profile))
         with Session(engine) as s, s.begin():
             sync_documents(s, job_id)
+    msgs = []
     for r in results:
+        name = f"{DOC_NAME.get(r.kind, r.kind)} ({r.lang})"
         if r.error:
-            st.error(f"{r.kind} ({r.lang}): {r.error}")
+            msgs.append(("error", f"{name}: {r.error}"))
         elif r.qa.passed:
-            st.success(f"{r.kind} ({r.lang}): document #{r.doc_id}, QA passed")
+            msgs.append(("success", f"{name} is ready: `{r.docx.name}` (QA passed)"))
         else:
-            st.warning(f"{r.kind} ({r.lang}): document #{r.doc_id}, QA FAILED - read the report")
+            msgs.append(("warning", f"{name} is ready: `{r.docx.name}`, but QA FAILED - read the report"))
+    # show the new files in the list straight away (the list is drawn above the form)
+    st.session_state[f"genmsg{job_id}"] = msgs
+    st.rerun()
 
 
 def _status_form(job_id: int, app) -> None:
@@ -468,36 +487,69 @@ def _feedback_form(job_id: int) -> None:
         st.success("Feedback saved.")
 
 
-def _documents_list(docs: list[GeneratedDocumentRow], key: str) -> None:
-    for doc in docs:
+DOC_NAME = {"cv": "CV", "cover_letter": "Cover letter"}
+DOC_STATUS = {"qa_passed": ("✅", "QA passed - read it, then approve"), "qa_failed": ("❌", "QA failed - read the report"),
+              "approved": ("👍", "approved by you"), "rejected": ("🗑️", "rejected"), "draft": ("•", "draft")}
+
+
+def _open_file(path: Path) -> None:
+    """The dashboard runs on this PC, so a file can open straight in Word / the PDF viewer / Explorer."""
+    import os
+    try:
+        os.startfile(str(path))  # type: ignore[attr-defined]  # Windows only
+    except (AttributeError, OSError) as exc:
+        st.error(f"Could not open {path.name}: {exc}. Use the download button instead.")
+
+
+def _documents_list(docs: list[GeneratedDocumentRow], key: str, show_job: bool = False) -> None:
+    """Newest first (CV before its letter). Each document: what it is, its file name, open / download,
+    approve / reject, QA report."""
+    for doc in sorted(docs, key=lambda d: (d.created_at.date(), d.version, d.doc_type == "cv", d.id), reverse=True):
         path = Path(doc.file_path)
-        cols = st.columns([3, 1, 1, 1, 1])
-        icon = {"qa_passed": "✅", "qa_failed": "❌", "approved": "👍", "rejected": "🗑️"}.get(doc.approval_status, "•")
-        cols[0].write(f"{icon} #{doc.id} {doc.doc_type} ({doc.language}) v{doc.version} - {doc.approval_status}")
-        if path.exists():
-            cols[1].download_button("Word", path.read_bytes(), file_name=path.name, key=f"{key}w{doc.id}")
         pdf = path.with_suffix(".pdf")
-        if pdf.exists():
-            cols[2].download_button("PDF", pdf.read_bytes(), file_name=pdf.name, key=f"{key}p{doc.id}")
-        override = doc.approval_status == ApprovalStatus.QA_FAILED.value
-        if cols[3].button("Approve", key=f"{key}a{doc.id}", disabled=doc.approval_status == "approved"):
-            if override and not st.session_state.get(f"{key}o{doc.id}"):
-                st.error("QA failed for this document: tick 'approve anyway' after reading the report.")
-            else:
-                _set_doc(doc.id, True)
-        if cols[4].button("Reject", key=f"{key}r{doc.id}", disabled=doc.approval_status == "rejected"):
-            _set_doc(doc.id, False)
-        if override:
-            st.checkbox("approve anyway (I have read the QA report)", key=f"{key}o{doc.id}")
-        qa_file = path.with_name(path.stem + "_qa.json")
-        if qa_file.exists():
-            import json
-            rep = json.loads(qa_file.read_text(encoding="utf-8"))
-            with st.expander(f"QA report #{doc.id}: {'passed' if rep['passed'] else 'FAILED'}, "
-                             f"{len(rep['issues'])} note(s)"):
-                if rep.get("ai_summary"):
-                    st.write(rep["ai_summary"])
-                st.dataframe(pd.DataFrame(rep["issues"]), hide_index=True)
+        icon, status = DOC_STATUS.get(doc.approval_status, ("•", doc.approval_status))
+        with st.container(border=True):
+            st.markdown(f"{icon} **{DOC_NAME.get(doc.doc_type, doc.doc_type)} ({doc.language.upper()}) "
+                        f"v{doc.version}** · {status}")
+            st.caption(f"`{path.name}` · created {doc.created_at:%d.%m.%Y %H:%M} · document #{doc.id}")
+            if not path.exists() and not pdf.exists():
+                st.warning(f"The file is no longer in {path.parent} (moved or deleted).")
+            row = st.container(horizontal=True, gap="small")     # buttons sized to their labels, in one row
+            if pdf.exists() and row.button("Open PDF", key=f"{key}op{doc.id}", icon=":material/picture_as_pdf:",
+                                           type="primary"):
+                _open_file(pdf)
+            if path.exists() and row.button("Open Word", key=f"{key}ow{doc.id}", icon=":material/description:"):
+                _open_file(path)
+            if pdf.exists():
+                row.download_button("PDF", pdf.read_bytes(), file_name=pdf.name, key=f"{key}p{doc.id}",
+                                    icon=":material/download:")
+            if path.exists():
+                row.download_button("Word", path.read_bytes(), file_name=path.name, key=f"{key}w{doc.id}",
+                                    icon=":material/download:")
+            override = doc.approval_status == ApprovalStatus.QA_FAILED.value
+            if row.button("Approve", key=f"{key}a{doc.id}", disabled=doc.approval_status == "approved",
+                          icon=":material/thumb_up:"):
+                if override and not st.session_state.get(f"{key}o{doc.id}"):
+                    st.error("QA failed for this document: tick 'approve anyway' after reading the report.")
+                else:
+                    _set_doc(doc.id, True)
+            if row.button("Reject", key=f"{key}r{doc.id}", disabled=doc.approval_status == "rejected",
+                          icon=":material/thumb_down:"):
+                _set_doc(doc.id, False)
+            if show_job:
+                row.button(f"Job #{doc.job_id}", key=f"{key}j{doc.id}", icon=":material/work:",
+                           on_click=open_job, args=(doc.job_id,))
+            if override:
+                st.checkbox("approve anyway (I have read the QA report)", key=f"{key}o{doc.id}")
+            qa_file = path.with_name(path.stem + "_qa.json")
+            if qa_file.exists():
+                import json
+                rep = json.loads(qa_file.read_text(encoding="utf-8"))
+                with st.expander(f"QA report: {'passed' if rep['passed'] else 'FAILED'}, "
+                                 f"{len(rep['issues'])} note(s)"):
+                    if rep.get("ai_summary"):
+                        st.write(rep["ai_summary"])
+                    st.dataframe(pd.DataFrame(rep["issues"]), hide_index=True)
 
 
 def _set_doc(doc_id: int, approve: bool) -> None:
@@ -637,7 +689,7 @@ def page_documents() -> None:
         status = st.multiselect("Show", [s_.value for s_ in ApprovalStatus],
                                 default=["qa_passed", "qa_failed", "draft"])
         docs = [s.get(GeneratedDocumentRow, int(i)) for i in df[df["status"].isin(status)]["doc"]]
-    _documents_list([d for d in docs if d], key="docs")
+    _documents_list([d for d in docs if d], key="docs", show_job=True)
 
 
 def page_sources() -> None:

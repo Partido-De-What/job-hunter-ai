@@ -275,3 +275,29 @@ def test_ats_keywords_tolerate_wording():
                                              "Flow cytometry", "HPLC"])
     assert present == ["QC procedures and documentation", "Sterile technique and autoclaving"]
     assert missing == ["Flow cytometry", "HPLC"]
+
+
+def test_job_details_lists_documents_with_open_and_download(app_env, tmp_path):
+    from vjh.db.tables import GeneratedDocumentRow
+    folder = tmp_path / "1-saat-gmbh"
+    folder.mkdir()
+    docx = folder / "Test_Person_CV_Labortechniker.docx"
+    import docx as python_docx
+    d = python_docx.Document()
+    d.add_paragraph("PCR Genotypisierung")
+    d.save(str(docx))
+    docx.with_suffix(".pdf").write_bytes(b"%PDF")
+    engine = migrate.make_engine(load_config().db_path)
+    with Session(engine) as s, s.begin():
+        s.add(GeneratedDocumentRow(job_id=1, doc_type="cv", language="en", file_path=str(docx), created_at=NOW,
+                                   version=1, approval_status="qa_passed", evidence_ids=[]))
+        s.add(GeneratedDocumentRow(job_id=1, doc_type="cover_letter", language="en", version=1, created_at=NOW,
+                                   file_path=str(folder / "gone.docx"), approval_status="qa_passed", evidence_ids=[]))
+    engine.dispose()
+    at = _run("Job details", job_id=1)
+    page = " ".join(m.value for m in at.markdown) + " ".join(c.value for c in at.caption)
+    assert "2 document(s) ready" in page and "Test_Person_CV_Labortechniker.docx" in page
+    labels = [b.label for b in at.button]
+    assert labels.count("Open PDF") == 1 and labels.count("Open Word") == 1 and "Open folder" in labels
+    assert any("no longer in" in w.value for w in at.warning)          # missing file is reported, not hidden
+

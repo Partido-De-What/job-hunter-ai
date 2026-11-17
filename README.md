@@ -362,7 +362,7 @@ Pages:
 - **Overview**, with this week's application goal
 - **Progress**: applications this week vs. your goal (`progress: weekly_application_goal` in `config/settings.yaml`), weeks in a row on goal, response and interview rates, found → recommended → applied → interview → offer, the last 12 weeks
 - **Jobs**, with filters
-- **Job details**: eligibility, score, skills, salary, documents, status, feedback
+- **Job details**: eligibility, score, skills, salary, documents (open PDF or Word, download, open folder, approve; a "documents ready" badge jumps there), status, feedback
 - **Applications**: a board (To review → Documents ready → Applied → Interview → Offer) or a table with quick actions
 - **Documents**: QA reports, downloads, approve or reject
 - **Sources**
