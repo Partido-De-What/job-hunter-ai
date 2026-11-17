@@ -21,7 +21,7 @@ TASK_XML = """<?xml version="1.0" encoding="UTF-16"?>
     <CalendarTrigger>
       <StartBoundary>{start}</StartBoundary>
       <Enabled>true</Enabled>
-      <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
+      {schedule}
     </CalendarTrigger>
   </Triggers>
   <Principals>
@@ -62,9 +62,36 @@ def python_for_task() -> Path:
     return pyw if pyw.exists() else exe
 
 
-def task_xml(*, time_hhmm: str, project_root: Path, python: Path, today: date | None = None) -> str:
+DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+DAY_XML = {"mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thursday", "fri": "Friday",
+           "sat": "Saturday", "sun": "Sunday"}
+# Ready-made choices for the setup wizard and the Settings page.
+FREQUENCIES = {"Every day": DAYS, "Weekdays (Mon-Fri)": DAYS[:5], "Mon, Wed, Fri": ["mon", "wed", "fri"],
+               "Twice a week (Mon, Thu)": ["mon", "thu"], "Once a week (Monday)": ["mon"]}
+
+
+def describe_days(days: list[str]) -> str:
+    days = [d for d in DAYS if d in set(days)]
+    for label, ds in FREQUENCIES.items():
+        if ds == days:
+            return label.split(" (")[0].lower() if label != "Weekdays (Mon-Fri)" else "on weekdays"
+    return "on " + ", ".join(DAY_XML[d][:3] for d in days)
+
+
+def schedule_xml(days: list[str] | None) -> str:
+    days = [d for d in DAYS if d in set(DAYS if days is None else days)]
+    if not days:
+        raise ScheduleError("choose at least one day")
+    if len(days) == 7:
+        return "<ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>"
+    inner = "".join(f"<{DAY_XML[d]} />" for d in days)
+    return f"<ScheduleByWeek><DaysOfWeek>{inner}</DaysOfWeek><WeeksInterval>1</WeeksInterval></ScheduleByWeek>"
+
+
+def task_xml(*, time_hhmm: str, project_root: Path, python: Path, today: date | None = None,
+             days: list[str] | None = None) -> str:
     start_day = (today or date.today()) + timedelta(days=1)
-    return TASK_XML.format(start=f"{start_day.isoformat()}T{time_hhmm}:00",
+    return TASK_XML.format(start=f"{start_day.isoformat()}T{time_hhmm}:00", schedule=schedule_xml(days),
                            command=escape(str(python)),
                            arguments=escape("-m vjh.cli run-daily --log"),
                            workdir=escape(str(project_root)))
@@ -74,11 +101,12 @@ def _schtasks(args: list[str], runner=subprocess.run) -> subprocess.CompletedPro
     return runner(["schtasks", *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
-def install(name: str, time_hhmm: str, project_root: Path, xml_dir: Path, runner=subprocess.run) -> str:
+def install(name: str, time_hhmm: str, project_root: Path, xml_dir: Path, runner=subprocess.run,
+            days: list[str] | None = None) -> str:
     xml_dir.mkdir(parents=True, exist_ok=True)
     xml_path = xml_dir / "vjh-daily-task.xml"
-    xml_path.write_text(task_xml(time_hhmm=time_hhmm, project_root=project_root, python=python_for_task()),
-                        encoding="utf-16")
+    xml_path.write_text(task_xml(time_hhmm=time_hhmm, project_root=project_root, python=python_for_task(),
+                                 days=days), encoding="utf-16")
     proc = _schtasks(["/Create", "/TN", name, "/XML", str(xml_path), "/F"], runner)
     if proc.returncode != 0:
         raise ScheduleError((proc.stderr or proc.stdout).strip() or "schtasks /Create failed")

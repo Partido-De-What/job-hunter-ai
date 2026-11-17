@@ -141,6 +141,9 @@ class CollectionSettings(_Strict):
 
 class AutomationSettings(_Strict):
     daily_time: str = Field(default="07:30", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    # Days the routine runs (mon..sun). All seven = every day.
+    run_days: list[Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]] = Field(
+        default=["mon", "tue", "wed", "thu", "fri", "sat", "sun"], min_length=1)
     task_name: str = "Job Hunter daily"
     auto_documents: bool = True               # CV + letter for very good new matches
     auto_documents_max_per_day: int = Field(default=2, ge=0, le=10)

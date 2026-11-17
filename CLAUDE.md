@@ -8,6 +8,13 @@ If `personal/master_profile.yaml` does not exist, run **New user setup** below b
 
 ## New user setup (guide the user through it, one step at a time)
 
+**Simplest path:** most users double-click `Setup.bat`, which installs everything and opens the
+setup wizard in the dashboard (`vjh setup`; code in `src/vjh/setup/` and
+`src/vjh/dashboard/setup_pages.py`). The wizard does steps 2-5, 7 and 9 below with forms and
+the user's own Claude. If the user asks you to set them up, offer that first. Your part is then
+mainly step 6 (researching job sources) and answering the profile's open questions (`todos`).
+The manual steps below remain the fallback and the reference for what the wizard must respect.
+
 The user may not be a developer: explain every step and give exact commands to copy.
 
 1. **Environment.** Check Python 3.12+ and Git. Create `.venv` and install (README section 2). On Windows, Microsoft Word is needed for PDFs; on macOS or Linux, say that the scheduler (Task Scheduler) and PDF conversion (docx2pdf/Word) need adapting, and offer to do it.

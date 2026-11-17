@@ -117,6 +117,7 @@ collection:
 automation:
   # Daily routine (vjh run-daily), scheduled with: vjh schedule install
   daily_time: "07:30"              # when Windows starts it (missed runs start when the PC is on again)
+  run_days: [mon, tue, wed, thu, fri, sat, sun]   # which days (all seven = every day)
   task_name: "Job Hunter daily"
   auto_documents: true             # CV + cover letter for new jobs scoring >= thresholds.generate_documents_min_score
   auto_documents_max_per_day: 2    # protects your Claude plan's usage limits

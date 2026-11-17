@@ -16,18 +16,26 @@
 - **Python** 3.12 o più recente (https://www.python.org) e **Git** (https://git-scm.com).
 - Un abbonamento **Claude** (Pro o Max) e **Claude Code** (https://claude.com/claude-code).
 
-## Primi passi (circa 30–60 minuti, una volta sola)
+## Primi passi (circa 15 minuti, una volta sola)
 
 1. **Estrai lo ZIP** in una cartella, per esempio sul Desktop.
-2. Dentro quella cartella crea una cartella **`cv`** e mettici il tuo **CV** (PDF o Word) e, se vuoi, una **foto**.
-3. Apri **Claude Code**, accedi con il tuo account Claude e apri la cartella del programma.
-4. Scrivi: **"Configurami"** (oppure "Set me up").
-5. Claude ti guida passo per passo:
-   - installa tutto;
-   - crea il tuo profilo dal CV e ti fa domande su ciò che manca. **Rispondi con sincerità**: il programma non inventa mai esperienze o livelli di lingua;
-   - imposta la tua zona, il tuo settore, le lingue e lo stile del CV;
-   - cerca e verifica i siti di lavoro adatti alla tua zona;
-   - fa con te una prima prova su 5 offerte.
+2. Fai doppio clic su **`Setup.bat`**. Il programma:
+   - controlla Python e, se manca, ti propone di installarlo;
+   - si installa nella cartella;
+   - ti propone di installare Claude Code, se manca;
+   - crea un'icona sul Desktop;
+   - apre la **procedura guidata** nel browser.
+3. La procedura guidata ha sei passi brevi:
+   1. **Claude e il CV:** accedi a Claude con un clic, poi carica il tuo **CV** (PDF o Word) e, se vuoi, una **foto**.
+   2. **Profilo:** Claude legge il CV e tu controlli i dati. Scegli il tuo **vero livello di lingua**: il programma non inventa mai esperienze o livelli.
+   3. **Ricerca:** paese, città e il tipo di lavoro che cerchi, con parole tue. Claude prepara parole chiave e filtri.
+   4. **Email:** dove ricevere il riepilogo. Con Gmail serve una *password per le app*: la procedura ti dice dove crearla, e un'email di prova verifica che funzioni.
+   5. **Frequenza:** ogni giorno, nei giorni feriali, 2 o 3 volte a settimana o una volta a settimana, all'ora che scegli.
+   6. **Fine:** parte la prima ricerca.
+
+Puoi cambiare tutto in seguito nella pagina **Settings** del pannello, senza modificare file.
+
+Vuoi più siti di lavoro (pagine carriera di aziende, università)? Apri la cartella in **Claude Code** e scrivi: *"trova altri siti di lavoro per la mia zona"*.
 
 ## Uso quotidiano
 

@@ -101,8 +101,9 @@ def cmd_schedule(cfg: AppConfig, args) -> int:
             if len(hhmm) != 5 or hhmm[2] != ":":
                 _fail("use --time HH:MM, e.g. 07:30")
                 return 1
-            schedule.install(name, hhmm, cfg.root, cfg.data_dir)
-            _ok(f"daily task '{name}' registered for {hhmm} every day")
+            days = cfg.settings.automation.run_days
+            schedule.install(name, hhmm, cfg.root, cfg.data_dir, days=days)
+            _ok(f"task '{name}' registered for {hhmm} {schedule.describe_days(days)}")
             print("         It runs only while you are logged in; missed runs start when the PC is on again.")
             print("         Check it with: vjh schedule status   |   remove it with: vjh schedule remove")
             return 0

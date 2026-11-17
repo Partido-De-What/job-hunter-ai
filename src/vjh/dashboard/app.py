@@ -16,12 +16,13 @@ from sqlalchemy.orm import Session
 
 from vjh.config import load_config, load_home_location, load_profile, load_yaml
 from vjh.dashboard import data
+from vjh.dashboard import setup_pages as setup
 from vjh.db import migrate
 from vjh.db.tables import GeneratedDocumentRow
 from vjh.models.common import ApplicationStatus, ApprovalStatus
 
 PAGES = ["Overview", "Progress", "Jobs", "Job details", "Applications", "Documents", "Sources", "Logs & errors",
-         "Feedback", "Import a job"]
+         "Feedback", "Import a job", "Settings"]
 APP_STATUSES = [s.value for s in ApplicationStatus]
 CATEGORY_LABEL = {"excellent": "Excellent", "strong": "Strong", "good_potential": "Good potential",
                   "possible": "Possible", "low_priority": "Low priority"}
@@ -30,7 +31,8 @@ REQ_LABEL = {"met": "✅ met", "partially_met": "🟡 partial", "not_met": "❌ 
 PAGE_ICON = {"Overview": ":material/dashboard:", "Progress": ":material/trending_up:", "Jobs": ":material/work:",
              "Job details": ":material/description:", "Applications": ":material/view_kanban:",
              "Documents": ":material/folder_open:", "Sources": ":material/hub:", "Logs & errors": ":material/terminal:",
-             "Feedback": ":material/thumbs_up_down:", "Import a job": ":material/add_link:"}
+             "Feedback": ":material/thumbs_up_down:", "Import a job": ":material/add_link:",
+             "Settings": ":material/settings:"}
 # One colour per score category, from strong (green) to weak (grey).
 CATEGORY_COLOR = {"excellent": "green", "strong": "green", "good_potential": "blue", "possible": "orange",
                   "low_priority": "gray"}
@@ -49,8 +51,11 @@ def _engine(db_path: str):
 cfg = _cfg()
 st.set_page_config(page_title=cfg.settings.dashboard.title, page_icon="🌱", layout="wide")
 if migrate.current_revision(cfg.db_path) != migrate.head_revision():
-    st.error("The database is missing or out of date. In PowerShell run: `vjh init`, then reload this page.")
-    st.stop()
+    try:
+        migrate.upgrade(cfg.db_path)          # first start (or after an update): create / upgrade the database
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"The database could not be prepared: {exc}. In PowerShell run: `vjh init`, then reload.")
+        st.stop()
 engine = _engine(str(cfg.db_path))
 
 
@@ -84,8 +89,15 @@ def score_badge(score: float | None, category: str | None) -> str:
 
 # ---------------- sidebar ----------------
 st.sidebar.title(f"🌱 {cfg.settings.dashboard.title}")
-page = st.sidebar.radio("Page", PAGES, key="page", label_visibility="collapsed",
-                        format_func=lambda p: f"{PAGE_ICON.get(p, '')} {p}")
+IN_SETUP = setup.needs_setup(cfg) or bool(st.session_state.get("setup_mode"))
+if IN_SETUP:                                  # the wizard: show its steps instead of the (empty) pages
+    page = None
+    _step = st.session_state.get("setup_step", 0)
+    st.sidebar.markdown("\n".join(f"{'**' if i == _step else ''}{'✓' if i < _step else i + 1}. {name}"
+                                  f"{'**' if i == _step else ''}  " for i, name in enumerate(setup.STEPS)))
+else:
+    page = st.sidebar.radio("Page", PAGES, key="page", label_visibility="collapsed",
+                            format_func=lambda p: f"{PAGE_ICON.get(p, '')} {p}")
 st.sidebar.divider()
 with session() as _s:
     _last = data.runs_frame(_s, limit=1)
@@ -801,6 +813,10 @@ def _store_import(cj) -> None:
         st.button("Open the job", on_click=open_job, args=(int(r.id),))
 
 
-{"Overview": page_overview, "Progress": page_progress, "Jobs": page_jobs, "Job details": page_job_details,
- "Applications": page_applications, "Documents": page_documents, "Sources": page_sources,
- "Logs & errors": page_logs, "Feedback": page_feedback, "Import a job": page_import}[page]()
+if IN_SETUP:
+    setup.page_setup(cfg)                     # first start: the wizard instead of empty pages
+else:
+    {"Overview": page_overview, "Progress": page_progress, "Jobs": page_jobs, "Job details": page_job_details,
+     "Applications": page_applications, "Documents": page_documents, "Sources": page_sources,
+     "Logs & errors": page_logs, "Feedback": page_feedback, "Import a job": page_import,
+     "Settings": lambda: setup.page_settings(cfg)}[page]()

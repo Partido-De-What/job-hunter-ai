@@ -53,6 +53,7 @@ def add_parsers(sub) -> None:
 
     d = sub.add_parser("dashboard", help="Open the local dashboard in your browser")
     d.add_argument("--port", type=int, default=None, help="Default: dashboard.port in config/settings.yaml")
+    sub.add_parser("setup", help="First-time setup in your browser: CV, profile, search, email, schedule")
     sc = sub.add_parser("shortcut", help="Put an icon on your Desktop that opens the dashboard (named after dashboard.title)")
     sc.add_argument("--remove", action="store_true", help="Remove the Desktop icon")
 
@@ -105,6 +106,22 @@ def cmd_dashboard(cfg: AppConfig, port: int) -> int:
         return subprocess.call(cmd, env=env, cwd=str(cfg.root))
     except KeyboardInterrupt:
         return 0
+
+
+def cmd_setup(cfg: AppConfig) -> int:
+    """Prepare folders and the database, then open the dashboard: without a profile it shows the
+    setup wizard; with one, the Settings page has the same options."""
+    from .dashboard.setup_pages import DATA_SUBDIRS
+    for sub_dir in DATA_SUBDIRS:
+        (cfg.data_dir / sub_dir).mkdir(parents=True, exist_ok=True)
+    (cfg.root / cfg.settings.paths.cv_dir).mkdir(parents=True, exist_ok=True)
+    migrate.upgrade(cfg.db_path)
+    _ok("folders and database ready")
+    if cfg.profile_path.exists():
+        print("  You are already set up: change anything on the dashboard's Settings page.")
+    else:
+        print("  The setup wizard opens in your browser.")
+    return cmd_dashboard(cfg, cfg.settings.dashboard.port)
 
 
 def _d(value: str | None) -> date | None:
@@ -226,6 +243,8 @@ def cmd_due(engine, days: int) -> int:
 def dispatch(cfg: AppConfig, args) -> int | None:
     if args.command == "shortcut":
         return cmd_shortcut(cfg, args.remove)
+    if args.command == "setup":
+        return cmd_setup(cfg)
     if args.command == "dashboard":
         if migrate.current_revision(cfg.db_path) != migrate.head_revision():
             _fail("Database missing or out of date. Run: vjh init")

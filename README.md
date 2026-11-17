@@ -48,7 +48,28 @@ More detail: [docs/SPECIFICATION.md](docs/SPECIFICATION.md) (requirements) · [d
 
 ## 2. Getting started
 
-### The easy way: let Claude Code guide you (recommended)
+### The easiest way: double-click `Setup.bat` (about 15 minutes)
+
+1. Download this folder (on GitHub: **Code → Download ZIP**), unzip it, for example on your Desktop.
+2. Double-click **`Setup.bat`**. It:
+   - checks Python and offers to install it if it is missing;
+   - installs Job Hunter in the folder;
+   - offers to install Claude Code if it is missing;
+   - puts a **Job Hunter AI** icon on your Desktop;
+   - opens the **setup wizard** in your browser.
+3. The wizard has six short steps:
+   1. **Claude and your CV:** sign in to Claude with one click, then upload your CV and, if you want, a photo.
+   2. **Your profile:** Claude reads your CV into your profile. You check it and choose your **honest language levels**. Nothing is invented: unclear points become questions.
+   3. **Your search:** country, home city, cities to search and the kind of job you want, in your own words. Claude drafts search terms, location filters and CV styles for you.
+   4. **Email reports:** where to send the report, and the account to send it from. For Gmail you paste an *app password*; the wizard shows where to get it. A test email checks it.
+   5. **Schedule:** every day, weekdays, Mon/Wed/Fri, twice a week or once a week, at the time you choose.
+   6. **Finish:** the first search starts in its own window, and the Desktop icon is created.
+
+Everything can be changed later on the dashboard's **Settings** page. No files to edit.
+
+### With Claude Code (adds job sources for your area)
+
+The wizard sets up LinkedIn, Indeed and Glassdoor for your city. To also add company career pages, university job boards and other sources for your field, open the folder in Claude Code and say **"find more job sources for my area"**. You can also do the whole setup this way:
 
 1. Put this folder somewhere on your computer (for example on your Desktop).
 2. Put your **CV** (PDF or Word) and, if you want, a **photo** into a new folder named `cv` inside it.
@@ -356,6 +377,16 @@ vjh dashboard
 
 It opens at http://127.0.0.1:8501 and works **only on this computer** (usage statistics off). Keep the window open while you use it; **Ctrl+C** stops it. If it is already running, `vjh dashboard` just opens the browser again.
 
+**Settings page:** everything the setup wizard asked can be changed here, no files to edit:
+- **Profile and CV:** new CV or photo, your language levels, open questions, *Rebuild my profile from the CV*.
+- **Search:** cities, salary floor, score thresholds, document languages, LinkedIn/Indeed/Glassdoor on or off, the search terms, and *Redo the search setup with Claude*.
+- **Email:** where reports go, with a test email.
+- **Schedule:** how often and when, plus *Run now*.
+- **AI and documents:** models, jobs rated per day, automatic CV and letter, the extra letter-editing pass.
+- **Dashboard:** name, weekly goal, port.
+
+Settings are saved into `config\settings.yaml` with its explanations kept, and checked before saving. Email goes into `.env`; a saved password is never shown again.
+
 **Desktop icon (Windows):** `vjh shortcut` puts a **Job Hunter AI** icon on your Desktop. Double-click it to open the dashboard (it runs in a minimised window; close that window to stop it). Remove it with `vjh shortcut --remove`.
 
 **Look and layout:** the colours, corners and fonts are set in `.streamlit/config.toml` (a calm green theme, no external fonts, so the dashboard stays fully local). The **Overview** opens with **Next steps**: overdue dates, documents waiting for approval or with a failed check, recommended jobs to rate, how far you are from the weekly goal, and failing sources, each with an **Open** button.
@@ -379,6 +410,7 @@ Pages:
 - **Sources**
 - **Logs & errors**
 - **Feedback**
+- **Settings** (see above)
 - **Import a job**
 
 ---
@@ -405,7 +437,7 @@ Steps, each isolated so that one failure doesn't stop the rest:
 vjh schedule install
 ```
 
-- Runs every day at 07:30. Change it with `--time 08:15`.
+- Runs every day at 07:30. Change it with `--time 08:15`, or choose the days and time on the dashboard's **Settings → Schedule** (`automation: run_days` in `config/settings.yaml`).
 - Runs as you, only while you are logged in, without administrator rights.
 - Missed runs start when the PC is on again.
 - No window opens. The log is in `data\logs\`.
