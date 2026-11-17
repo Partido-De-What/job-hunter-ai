@@ -71,6 +71,31 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", t).strip("-")[:40] or "employer"
 
 
+DOC_LABEL = {("cv", "en"): "CV", ("cv", "de"): "Lebenslauf",
+             ("letter", "en"): "Cover_Letter", ("letter", "de"): "Anschreiben"}
+_GENDER_NOTE = re.compile(r"\([^)]*\)|\b[mwfdx]\s*/\s*[mwfdx](?:\s*/\s*[mwfdx])?\b|[*:_](?:in|innen|r)\b", re.I)
+
+
+def _file_part(text: str, limit: int) -> str:
+    """ASCII words joined by '_', cut at a word boundary (safe for upload forms)."""
+    t = unicodedata.normalize("NFKD", text.replace("ß", "ss")).encode("ascii", "ignore").decode()
+    words = re.findall(r"[A-Za-z0-9]+", t)
+    out = ""
+    for w in words:
+        if len(out) + len(w) + 1 > limit and out:
+            break
+        out = f"{out}_{w}" if out else w
+    return out
+
+
+def doc_filename(full_name: str, job_title: str, kind_key: str, lang: str, version: int) -> str:
+    """'Anna_Muster_CV_Lab_Technician.docx'; later versions get '_v2', '_v3', ..."""
+    title = _file_part(_GENDER_NOTE.sub(" ", job_title), 60) or "Job"
+    label = DOC_LABEL.get((kind_key, lang), DOC_LABEL[(kind_key, "en")])
+    stem = f"{_file_part(full_name, 40) or 'Applicant'}_{label}_{title}"
+    return f"{stem}{f'_v{version}' if version > 1 else ''}.docx"
+
+
 def next_version(s: Session, job_id: int, doc_type: str, lang: str) -> int:
     n = s.scalar(select(func.max(GeneratedDocumentRow.version)).where(
         GeneratedDocumentRow.job_id == job_id, GeneratedDocumentRow.doc_type == doc_type,
@@ -110,7 +135,7 @@ def generate_for_job(engine: Engine, settings: Settings, profile: MasterProfile,
                 res.notes = notes
                 with Session(engine) as s:
                     version = next_version(s, job.id, doc_type, lang)
-                path = folder / f"{kind_key}_{lang}_v{version}.docx"
+                path = folder / doc_filename(profile.personal.full_name, job.title, kind_key, lang, version)
                 if isinstance(plan, CVPlan):
                     render_cv(plan, profile, home, lang, path, photo, settings.candidate.cv_conventions,
                               settings.candidate.home_city_names)

@@ -255,8 +255,9 @@ def test_generate_writes_files_db_rows_and_qa(env):
     assert [r.error for r in results] == [None, None]
     assert all(r.qa.passed for r in results)
     cv, letter = results
-    assert cv.docx.name == "cv_en_v1.docx" and letter.qa.pages == 1
-    assert (cv.docx.parent / "cv_en_v1_qa.json").exists()
+    assert cv.docx.name == "Test_Person_CV_Lab_Technician.docx" and letter.qa.pages == 1
+    assert letter.docx.name == "Test_Person_Cover_Letter_Lab_Technician.docx"
+    assert (cv.docx.parent / "Test_Person_CV_Lab_Technician_qa.json").exists()
     assert any(i.source == "writer" for i in cv.qa.issues)          # writer flags kept as warnings
     assert "German" in llm.systems[0] and "A2" in llm.systems[0]
     with Session(engine) as s:
@@ -268,7 +269,19 @@ def test_generate_writes_files_db_rows_and_qa(env):
     convert, count = fake_pdf([2])
     again = generate_for_job(engine, SETTINGS, profile, HOME, llm2, job_id=1, langs=["en"], kinds=["cv"],
                              out_root=out, photo=None, convert_pdf=convert, count_pages=count)
-    assert again[0].docx.name == "cv_en_v2.docx" and cv.docx.exists()
+    assert again[0].docx.name == "Test_Person_CV_Lab_Technician_v2.docx" and cv.docx.exists()
+
+
+def test_doc_filename_is_name_label_job_title():
+    from vjh.documents.generate import doc_filename
+    assert doc_filename("Anna Muster", "Laborant*in (m/w/d) Mikrobiologie", "cv", "de", 1) == \
+        "Anna_Muster_Lebenslauf_Laborant_Mikrobiologie.docx"
+    assert doc_filename("Max Beispiel", "Technische:r Assistent:in – Zellkultur", "letter", "de", 3) == \
+        "Max_Beispiel_Anschreiben_Technische_Assistent_Zellkultur_v3.docx"
+    assert doc_filename("Jörg Weiß", "QC Analyst / Microbiology", "letter", "en", 1) == \
+        "Jorg_Weiss_Cover_Letter_QC_Analyst_Microbiology.docx"
+    long = doc_filename("A B", "Word " * 40, "cv", "en", 1)
+    assert len(long) < 90 and long.endswith("Word.docx")
 
 
 def test_reviewer_error_fails_qa(env):

@@ -283,7 +283,7 @@ vjh docs generate 44
 - **Python** checks language levels against your profile, pronouns, employers and dates, and page limits.
 - **An independent AI reviewer** looks for unsupported claims, grammar, ATS problems, CV/letter consistency, and wording that is hard to defend.
 
-Files go into `data\documents\<job>-<employer>\` as `.docx`, `.pdf` and `_qa.json`. New runs create new versions; nothing is overwritten.
+Files go into `data\documents\<job>-<employer>\` as `.docx`, `.pdf` and `_qa.json`, named after you, the document and the job, e.g. `Anna_Muster_CV_Lab_Technician.docx` (German: `…_Lebenslauf_…`; letters: `…_Cover_Letter_…` / `…_Anschreiben_…`). New runs add `_v2`, `_v3`, …; nothing is overwritten.
 
 List documents and read a report:
 
