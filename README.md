@@ -393,6 +393,10 @@ Settings are saved into `config\settings.yaml` with its explanations kept, and c
 
 **ATS keyword match:** on a job's page, above its documents, a box shows how many of the ad's skills that you really have are actually written in the newest CV (for example "5 of 6"), with the missing ones in grey. Applicant tracking systems rank CVs by such keywords. The same check adds a *warning* (never an error) to the CV's quality report. It works without the AI, so it costs nothing.
 
+**Things to check about an ad (free, no AI):** on a job's page, a box lists warning signs: posted more than 30 days ago, the same title from the same employer seen again after 3+ weeks (often reposted), deadline passed, no pay stated (Austrian ads must state the minimum pay, GlBG §9), a very short ad, or a recruiting agency with an unnamed employer. The first three also appear next to good matches in the daily email. They are hints, not proof.
+
+**Interview and follow-up:** on a job's page, *Interview preparation* writes a private Word file (`..._Interview_Prep_<job>.docx`, in the job's document folder): likely questions with answer outlines built only from your real experience (each shows what it is based on), honest answers for your gaps, questions to ask, German tips at your real level and a checklist. *Email drafts* writes a short follow-up (no answer yet) or thank-you (after the interview) to copy into your own email; nothing is sent. Each uses one AI call from your Claude plan.
+
 **Job titles are links:** click a title in any table or card to open the job ad (where you apply). A 🔎 in front means no link is stored, so it opens a web search for that job instead.
 
 **Two people on one computer:** use two separate copies of this folder. Each copy needs its own `dashboard: port` (e.g. 8501 and 8502) and `dashboard: title` (this also names the Desktop icon), its own `database: path` and its own `automation: task_name` in `config/settings.yaml`.
@@ -404,7 +408,7 @@ Pages:
 - **Overview**, with this week's application goal
 - **Progress**: applications this week vs. your goal (`progress: weekly_application_goal` in `config/settings.yaml`), weeks in a row on goal, response and interview rates, found → recommended → applied → interview → offer, the last 12 weeks
 - **Jobs**, with filters
-- **Job details**: eligibility, score, skills, salary, documents (open PDF or Word, download, open folder, approve; a "documents ready" badge jumps there), status, feedback
+- **Job details**: eligibility, score, skills, salary, documents (open PDF or Word, download, open folder, approve; a "documents ready" badge jumps there), warning signs about the ad, interview preparation, follow-up and thank-you email drafts, status, feedback
 - **Applications**: a board (To review → Documents ready → Applied → Interview → Offer) or a table with quick actions
 - **Documents**: QA reports, downloads, approve or reject
 - **Sources**

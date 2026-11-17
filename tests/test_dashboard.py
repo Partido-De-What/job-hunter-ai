@@ -301,3 +301,26 @@ def test_job_details_lists_documents_with_open_and_download(app_env, tmp_path):
     assert labels.count("Open PDF") == 1 and labels.count("Open Word") == 1 and "Open folder" in labels
     assert any("no longer in" in w.value for w in at.warning)          # missing file is reported, not hidden
 
+
+def test_job_details_shows_ad_warnings_and_writes_email_drafts(app_env, monkeypatch):
+    import json
+
+    import vjh.cli_pipeline as cp
+    from vjh.llm.client import LLMResult
+
+    class Fake:
+        def complete_json(self, *, system, user, schema, model):
+            return LLMResult(text=json.dumps({"subject": "Follow-up: QC Analyst", "body": "Dear team, ..."}),
+                             stop_reason="end_turn", model=model)
+
+    monkeypatch.setattr(cp, "backend_ready", lambda cfg: (True, "ok"))
+    monkeypatch.setattr(cp, "_llm", lambda cfg: Fake())
+    at = _run("Job details", job_id=2)                 # Tulln, no salary stated
+    assert any("thing(s) to check" in e.label for e in at.expander)
+    assert any("GlBG" in m.value for m in at.markdown)
+    assert [t.label for t in at.tabs][-2:] == [":material/record_voice_over: Interview preparation",
+                                               ":material/mail: Email drafts"]
+    [b for b in at.button if b.label == "Write draft"][0].click()
+    at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert [c.value for c in at.code][:2] == ["Follow-up: QC Analyst", "Dear team, ..."]

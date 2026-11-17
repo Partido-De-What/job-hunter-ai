@@ -316,6 +316,7 @@ def page_job_details() -> None:
     info[3].write(f"**Ad language:** {d['language']}")
     if j.status != "evaluated" and j.filter_reason:
         st.info(f"Stage 1: {j.status} - {j.filter_reason}")
+    _red_flags(j)
 
     if ev and ai:
         if ev.potentially_ineligible:
@@ -387,10 +388,123 @@ def page_job_details() -> None:
         with st.expander("History"):
             st.dataframe(pd.DataFrame([{"when": e.occurred_at, "from": e.from_status, "to": e.to_status,
                                         "note": e.note} for e in d["history"]]), hide_index=True)
+    _coach_section(j, ai, app, d["documents"])
     st.subheader("Feedback on this recommendation")
     for fb in d["feedback"]:
         st.caption(f"{'👍' if fb.accepted else '👎'} {fb.created_at:%Y-%m-%d}: {fb.reason}")
     _feedback_form(j.id)
+
+
+def _red_flags(j) -> None:
+    """Free warning signs on the ad (old, reposted, no pay, agency...). Hints, not proof."""
+    from vjh.scoring.red_flags import job_flags
+    with session() as s:
+        flags = job_flags(s, j)
+    if not flags:
+        return
+    warn = [f for f in flags if f.level == "warn"]
+    with st.expander(f":material/report: {len(flags)} thing(s) to check about this ad"
+                     + (" (worth a look)" if warn else ""), expanded=bool(warn)):
+        for f in flags:
+            st.markdown(f"{':orange[:material/warning:]' if f.level == 'warn' else ':gray[:material/info:]'} {f.text}")
+        st.caption("Signals, not proof: many old or reposted ads are real. They help you decide where to spend time.")
+
+
+def _coach_folder(j, docs) -> Path:
+    from vjh.documents.generate import slug
+    if docs:
+        return Path(docs[-1].file_path).parent
+    return cfg.data_dir / "documents" / f"{j.id}-{slug(j.employer)}"
+
+
+def _coach_llm(job_id: int):
+    from vjh.cli_pipeline import _llm, backend_ready
+    from vjh.documents.generate import _Recorder
+    ok, why = backend_ready(cfg)
+    if not ok:
+        st.error(why)
+        return None
+    rec = _Recorder(_llm(cfg), engine, cfg.settings, job_id)
+    rec.purpose = "coach"
+    return rec
+
+
+def _coach_section(j, ai: dict | None, app, docs) -> None:
+    """Interview preparation pack and follow-up / thank-you email drafts (never sent)."""
+    from vjh.documents.coach import EMAIL_KINDS, PREP_LABEL
+    st.subheader("Interview and follow-up", anchor="coach")
+    status = app.status if app else "new"
+    profile = load_profile(cfg.profile_path)
+    folder = _coach_folder(j, docs)
+    t1, t2 = st.tabs([":material/record_voice_over: Interview preparation", ":material/mail: Email drafts"])
+    with t1:
+        if status not in ("applied", "interview", "offer"):
+            st.caption("Useful once you have applied or have an interview, but you can create it any time.")
+        for kind, msg in st.session_state.pop(f"prepmsg{j.id}", []):
+            getattr(st, kind)(msg)
+        preps = [p for lbl in PREP_LABEL.values() for p in sorted(folder.glob(f"*_{lbl}_*.docx"))]
+        for p in preps:
+            row = st.columns([4, 1])
+            row[0].markdown(f":material/article: `{p.name}`")
+            if row[1].button("Open", key=f"prep{j.id}{p.name}", icon=":material/open_in_new:"):
+                _open_file(p)
+        st.caption("Likely questions with answer outlines built only from your real experience, honest answers "
+                   "for the gaps, questions to ask and a checklist. Private notes for you, saved as Word.")
+        with st.form(f"prepform{j.id}"):
+            lang = st.selectbox("Language", ["en", "de", "it"], key=f"preplang{j.id}")
+            go_prep = st.form_submit_button("Create interview preparation (about 1-2 minutes, uses your Claude plan)")
+        if go_prep:
+            _make_prep(j, ai, profile, folder, lang)
+    with t2:
+        st.caption("A short draft to copy into your own email. Nothing is sent by this program.")
+        with st.form(f"mailform{j.id}"):
+            a, b = st.columns(2)
+            default = 1 if status == "interview" else 0
+            kind = a.selectbox("Email", list(EMAIL_KINDS), index=default, key=f"mailkind{j.id}",
+                               format_func=lambda k: {"follow_up": "Follow-up (no answer yet)",
+                                                      "thank_you": "Thank-you after the interview"}[k])
+            lang = b.selectbox("Language", ["en", "de", "it"], key=f"maillang{j.id}")
+            context = st.text_input("Anything to mention (optional), e.g. who you spoke to or a topic from the "
+                                    "interview", key=f"mailctx{j.id}")
+            go_mail = st.form_submit_button("Write draft")
+        if go_mail:
+            llm = _coach_llm(j.id)
+            if llm:
+                from vjh.documents.coach import write_email
+                try:
+                    with st.spinner("Writing the draft..."):
+                        st.session_state[f"mail{j.id}"] = write_email(
+                            llm, kind=kind, job=j, evaluation=ai, profile=profile, settings=cfg.settings,
+                            lang=lang, context=context)
+                except Exception as exc:  # noqa: BLE001 - show the reason, keep the page working
+                    st.error(f"Could not write the draft: {exc}")
+        draft = st.session_state.get(f"mail{j.id}")
+        if draft:
+            st.markdown("**Subject** (hover to copy)")
+            st.code(draft.subject, language=None)
+            st.markdown("**Text**")
+            st.code(draft.body, language=None, wrap_lines=True)
+            st.caption("Read it, change what you like, then send it yourself.")
+
+
+def _make_prep(j, ai: dict | None, profile, folder: Path, lang: str) -> None:
+    from vjh.documents.coach import prep_filename, render_prep, write_interview_prep
+    llm = _coach_llm(j.id)
+    if llm is None:
+        return
+    try:
+        with st.spinner("Preparing your interview pack..."):
+            prep, notes = write_interview_prep(llm, job=j, evaluation=ai, profile=profile, settings=cfg.settings,
+                                               lang=lang)
+            path = render_prep(prep, profile, j, folder / prep_filename(profile.personal.full_name, j.title, lang))
+    except Exception as exc:  # noqa: BLE001
+        st.session_state[f"prepmsg{j.id}"] = [("error", f"Could not create the preparation: {exc}")]
+    else:
+        msgs = [("success", f"Ready: `{path.name}` ({len(prep.likely_questions)} questions, "
+                            f"{len(prep.gap_questions)} gaps)")]
+        msgs += [("caption", n) for n in notes]
+        st.session_state[f"prepmsg{j.id}"] = msgs
+    st.rerun()
 
 
 def _keyword_match(docs, ai: dict | None) -> None:

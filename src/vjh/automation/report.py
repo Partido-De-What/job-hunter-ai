@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..dashboard.data import salary_text, sources_frame
 from ..db.tables import ApiUsageRow, GeneratedDocumentRow, JobEvaluationRow, JobRow, RunRow
+from ..scoring.red_flags import job_flags
 from ..tracker.service import due_items
 
 
@@ -81,6 +82,8 @@ def build_daily_report(session: Session, now: datetime, settings, steps: list[St
                               "recommendation": ev.recommendation, "ineligible": ev.potentially_ineligible,
                               "title": j.title, "employer": j.employer, "location": j.location or "",
                               "salary": salary_text(j.salary), "deadline": j.deadline,
+                              "flags": [f.text.split(":")[0] for f in job_flags(session, j, now.date())
+                                        if f.level == "warn"],
                               # untrusted: only plain web links become clickable
                               "url": j.url if (j.url or "").lower().startswith(("https://", "http://")) else ""})
     for d in session.scalars(select(GeneratedDocumentRow).where(GeneratedDocumentRow.created_at >= since)
@@ -120,7 +123,8 @@ TEMPLATE = """<!doctype html>
 {% if r.top_matches %}<table><tr><th>#</th><th>Score</th><th>Job</th><th>Location</th><th>Salary</th><th>Deadline</th><th>AI says</th></tr>
 {% for e in r.top_matches %}<tr><td>{{ e.id }}</td><td class="score">{{ '%.0f'|format(e.score) }}</td>
 <td>{% if e.url %}<a href="{{ e.url }}">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}<br><span class="muted">{{ e.employer }}</span>
-{% if e.ineligible %}<br><span class="warn">⚠ a mandatory requirement is not met</span>{% endif %}</td>
+{% if e.ineligible %}<br><span class="warn">⚠ a mandatory requirement is not met</span>{% endif %}
+{% for f in e.flags %}<br><span class="warn">⚠ {{ f }}</span>{% endfor %}</td>
 <td>{{ e.location }}</td><td>{{ e.salary or '-' }}</td><td>{{ e.deadline or '-' }}</td><td>{{ e.recommendation }}</td></tr>{% endfor %}</table>
 {% else %}<p>No new jobs above the recommendation threshold.</p>{% endif %}
 {% set others = r.evaluated|length - r.top_matches|length %}
