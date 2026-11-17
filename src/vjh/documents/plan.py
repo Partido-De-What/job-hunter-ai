@@ -64,10 +64,12 @@ class Paragraph(_M):
 
 
 class LetterPlan(_M):
+    angle: str = ""                 # the single thread of the letter (planning aid, not printed)
     subject: str
     salutation: str
     paragraphs: list[Paragraph]
     sign_off: str
+    keywords_used: list[str] = []
     flags: list[str] = []
 
 
@@ -114,6 +116,7 @@ def letter_schema() -> dict:
     return {
         "type": "object",
         "properties": {
+            "angle": {"type": "string"},          # first: the model decides the thread before writing
             "subject": {"type": "string"},
             "salutation": {"type": "string"},
             "paragraphs": {"type": "array", "items": {
@@ -123,9 +126,10 @@ def letter_schema() -> dict:
                                "evidence_ids": {"type": "array", "items": {"type": "string"}}},
                 "required": ["kind", "text", "evidence_ids"], "additionalProperties": False}},
             "sign_off": {"type": "string"},
+            "keywords_used": {"type": "array", "items": {"type": "string"}},
             "flags": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["subject", "salutation", "paragraphs", "sign_off", "flags"],
+        "required": ["angle", "subject", "salutation", "paragraphs", "sign_off", "keywords_used", "flags"],
         "additionalProperties": False,
     }
 

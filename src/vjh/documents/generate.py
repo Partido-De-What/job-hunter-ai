@@ -18,9 +18,9 @@ from ..models.common import ApprovalStatus
 from ..models.profile import HomeLocation, MasterProfile
 from ..models.settings import Settings
 from .plan import CVPlan
-from .qa import QAReport, ai_review, ats_keyword_issues, emphasis_issues, python_checks
+from .qa import QAReport, ai_review, ats_keyword_issues, emphasis_issues, letter_style_issues, python_checks
 from .render import LETTER_LAYOUTS, docx_text, pdf_pages, render_cv, render_letter, to_pdf
-from .writer import write_plan
+from .writer import letter_key_terms, write_plan
 
 KINDS = {"cv": "cv", "letter": "cover_letter"}
 
@@ -167,6 +167,8 @@ def generate_for_job(engine: Engine, settings: Settings, profile: MasterProfile,
                 if isinstance(plan, CVPlan):
                     report.issues += emphasis_issues(plan)
                     report.issues += ats_keyword_issues(text, ai_eval)
+                else:
+                    report.issues += letter_style_issues(text, ai_eval, letter_key_terms(ai_eval))
                 res.qa = report
                 path.with_name(path.stem + "_qa.json").write_text(report.to_json(), encoding="utf-8")
                 if doc_type == "cv":

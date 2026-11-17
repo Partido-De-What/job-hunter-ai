@@ -110,6 +110,7 @@ class LLMSettings(_Strict):
     max_output_tokens: int = Field(default=16000, ge=1024)
     refusal_fallback: bool = True        # server-side fallback on policy refusals
     max_failures_per_job: int = Field(default=2, ge=1)
+    letter_revision: bool = True         # second AI pass that edits cover letters for natural wording
     prices: dict[str, ModelPrice] = {}
 
     def price_for(self, model: str) -> ModelPrice | None:

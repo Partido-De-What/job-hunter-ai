@@ -50,34 +50,98 @@ TASK: plan a tailored, ATS-friendly CV of at most two pages.
 """
 
 LETTER_RULES = """\
-TASK: plan a one-page cover letter: 230-300 words in total, at most 5 paragraphs. It MUST fit
+TASK: write a one-page cover letter: 230-300 words in total, at most 5 paragraphs. It MUST fit
 on one A4 page together with the address block, so stay within the limit.
 - Address the correct employer and position. salutation: use the contact person named in the ad,
   otherwise a neutral one ("Dear Hiring Team," / "Sehr geehrte Damen und Herren," /
   "Gentile Responsabile della selezione,").
+- angle (write it FIRST, it is not printed): one sentence naming the single thread of this letter,
+  i.e. the one experience of the candidate that best answers what this team needs, and why.
 - paragraphs, in order:
-  1 "opening": the position applied for and one concrete reason the candidate fits (with evidence).
-  2-3 "evidence": link 2-3 specific responsibilities from the ad to the candidate's professional
-     and academic experience, with evidence IDs.
-  "motivation": why this employer and role, based ONLY on what the ad says; no claims about the
-     candidate's past here.
-  "closing": availability for an interview; if the ad needs a language the candidate is still
-     learning, mention it honestly at the real level from the profile.
-- First person ("I"). Concrete and specific, no flattery.
+  1 "opening": the position, then the angle in plain words (with evidence).
+  2-3 "evidence": tell the angle as a short, concrete account: what the candidate worked on, how,
+     and what came of it, then what that means for this team's work. A second paragraph may add
+     one further strand (e.g. the degree or another role). Depth on one or two things beats a
+     tour of everything; the CV already lists the rest.
+  "motivation": why this employer and this role, using a specific detail from the ad (their
+     product, research topic, team or method) and how it connects to where the candidate is
+     heading. No claims about the candidate's past here; no generic praise.
+  "closing": short; availability for an interview; if the ad needs a language the candidate is
+     still learning, mention it honestly at the real level from the profile.
+- KEY TERMS: weave the KEY TERMS listed in the request into sentences about real work, each in the
+  ad's own wording, each once, wherever the evidence supports it. A term belongs inside a sentence
+  that says what was done with it; never in a list of three or more tools.
 - subject: e.g. "Application: <position>" in the document language.
 - sign_off: e.g. "Kind regards" / "Mit freundlichen Grüßen" / "Cordiali saluti" (software adds the name).
+- keywords_used: the KEY TERMS you actually used.
+"""
+
+LETTER_STYLE = """\
+<letter_style>
+Write the way a capable professional writes to a respected senior colleague they have not met:
+formal enough for an application, but plain, warm and direct. A reader should feel a person
+behind the letter who knows what they did and why it matters for this job.
+- Prose that flows: each sentence follows from the one before; connect ideas with "which",
+  "so", "because", "since then", "that is why" rather than stacking separate statements.
+- Vary rhythm: mix short sentences with longer ones. Fewer than a third of the sentences start
+  with "I" (or "Ich" / "Io"); start others with the work, the place, the result or the reason.
+- Be concrete: name the material, organism, method, sample type or decision involved, and the
+  purpose it served. One precise detail is worth more than three adjectives.
+- Speak about the job in your own words. Do not quote or echo the ad back ("Your ad asks for",
+  "The role includes", "As stated in your advertisement", "Wie in Ihrer Anzeige").
+- Gaps: do not list skills the candidate lacks. Only if a gap concerns a mandatory requirement,
+  one short forward-looking clause is enough.
+- Plain words: use the everyday term ("use", "help", "important", "careful", "show") instead of
+  inflated ones. These words and phrases mark a text as machine-written; do not use them:
+  delve, pivotal, crucial, meticulous, showcase, underscore, leverage, foster, robust, seamless,
+  invaluable, testament, tapestry, landscape, realm, thrive, honed, synergy, passionate,
+  "I am excited", "I am eager", "keen interest", "align(s) with", "proven track record",
+  "fast-paced", "dynamic team", "unique opportunity", "make a meaningful contribution",
+  "I am writing to express", "I am confident that", "not only ... but also",
+  "mit großem Interesse", "hiermit bewerbe ich mich", "spannende Herausforderung",
+  "Teamplayer", "dynamisches Team", "wertvolle Erfahrungen sammeln", "ich bin überzeugt, dass".
+- Punctuation: no em dashes and no semicolons in the letter; use full stops and commas.
+- German letters use the "Sie" form.
+</letter_style>
+"""
+
+REVISION_RULES = """\
+TASK: you are the editor of the cover letter draft given in the request. Rewrite it so that it
+reads as if a thoughtful person wrote it in one go, following <letter_style>. Keep:
+- every fact exactly as supported by its evidence IDs (never add a fact, number, tool, method or
+  result; you may drop weak or repetitive ones), and keep each paragraph's kind and evidence_ids
+  (drop IDs only for facts you removed);
+- the salutation, subject and sign_off unless they break a rule;
+- the KEY TERMS the draft already uses, in the ad's wording (add missing ones only where the
+  evidence supports them);
+- the length limit of 230-300 words.
+Fix: list-like sentences, repeated sentence openings, ad-echo phrases, banned words, generic
+motivation, and anything that sounds like a form being filled in. Return the full letter.
 """
 
 
-def build_writer_system(profile: MasterProfile, settings: Settings, kind: str, lang: str) -> str:
-    rules = CV_RULES if kind == "cv" else LETTER_RULES
+LETTER_KEY_TERMS = 6     # the letter carries the most important matches; the CV carries all of them
+
+
+def letter_key_terms(evaluation: dict | None) -> list[str]:
+    """The ad's most important skills that the candidate truly has (from the evaluation)."""
+    terms = (evaluation or {}).get("technical_skill_matches") or []
+    return list(dict.fromkeys(t.strip() for t in terms if t and t.strip()))[:LETTER_KEY_TERMS]
+
+
+def build_writer_system(profile: MasterProfile, settings: Settings, kind: str, lang: str,
+                        revision: bool = False) -> str:
+    if kind == "cv":
+        rules = CV_RULES
+    else:
+        rules = (REVISION_RULES if revision else LETTER_RULES) + "\n" + LETTER_STYLE
     return (f"You write job application documents in {LANG_NAMES[lang]}. All text you write must be "
             f"in {LANG_NAMES[lang]}. Follow the usual application conventions of {settings.candidate.country}."
             f"\n\n{COMMON_RULES}\n{rules}\n{render_profile(profile, settings)}")
 
 
 def build_writer_user(job, evaluation: dict | None, cv_profile: str | None,
-                      strategies: dict[str, str] | None = None) -> str:
+                      strategies: dict[str, str] | None = None, kind: str = "cv") -> str:
     parts = []
     strategies = strategies or {}
     if cv_profile in strategies:
@@ -88,24 +152,54 @@ def build_writer_user(job, evaluation: dict | None, cv_profile: str | None,
                      f"- strengths: {'; '.join(evaluation.get('best_matching_experience', [])[:6])}\n"
                      f"- skill matches: {'; '.join(evaluation.get('technical_skill_matches', [])[:8])}\n"
                      f"- gaps (do NOT claim these): {'; '.join(evaluation.get('missing_skills', [])[:8])}")
+    if kind == "letter" and letter_key_terms(evaluation):
+        parts.append("KEY TERMS (weave in naturally, in this wording, where the evidence supports them): "
+                     + "; ".join(letter_key_terms(evaluation)))
     parts.append(build_user_message(job).replace("Evaluate this job for the candidate.",
                                                  "Write for this job."))
     return "\n\n".join(parts)
 
 
-def write_plan(llm: LLM, *, kind: str, lang: str, job, evaluation: dict | None, cv_profile: str | None,
-               profile: MasterProfile, settings: Settings) -> tuple[CVPlan | LetterPlan, list[str]]:
-    system = build_writer_system(profile, settings, kind, lang)
-    user = build_writer_user(job, evaluation, cv_profile, settings.candidate.cv_strategies)
-    schema = cv_schema(profile) if kind == "cv" else letter_schema()
+def _call(llm: LLM, system: str, user: str, schema: dict, settings: Settings) -> dict:
     res = llm.complete_json(system=system, user=user, schema=schema, model=settings.llm.strong_model)
     if res.stop_reason in ("refusal", "max_tokens"):
         raise RuntimeError(f"writer stopped: {res.stop_reason}")
-    raw = json.loads(res.text)
+    return json.loads(res.text)
+
+
+def write_plan(llm: LLM, *, kind: str, lang: str, job, evaluation: dict | None, cv_profile: str | None,
+               profile: MasterProfile, settings: Settings) -> tuple[CVPlan | LetterPlan, list[str]]:
+    system = build_writer_system(profile, settings, kind, lang)
+    user = build_writer_user(job, evaluation, cv_profile, settings.candidate.cv_strategies, kind)
     if kind == "cv":
-        plan = CVPlan.model_validate(raw)
-        notes = enforce_cv(plan, profile)
-    else:
-        plan = LetterPlan.model_validate(raw)
-        notes = enforce_letter(plan, profile)
+        plan = CVPlan.model_validate(_call(llm, system, user, cv_schema(profile), settings))
+        return plan, enforce_cv(plan, profile)
+    plan = LetterPlan.model_validate(_call(llm, system, user, letter_schema(), settings))
+    notes = enforce_letter(plan, profile)
+    if settings.llm.letter_revision and plan.paragraphs:
+        plan, more = revise_letter(llm, plan, lang=lang, job=job, evaluation=evaluation, profile=profile,
+                                   settings=settings)
+        notes += more
     return plan, notes
+
+
+def revise_letter(llm: LLM, draft: LetterPlan, *, lang: str, job, evaluation: dict | None,
+                  profile: MasterProfile, settings: Settings) -> tuple[LetterPlan, list[str]]:
+    """Second pass (draft -> edit, as in Self-Refine): drafting with evidence and polishing the
+    language are competing goals, so a separate editor call only improves the wording. The same
+    evidence gate applies afterwards; if the edit fails, the checked draft is kept."""
+    system = build_writer_system(profile, settings, "letter", lang, revision=True)
+    user = (build_writer_user(job, evaluation, None, kind="letter")
+            + "\n\nDRAFT TO EDIT (JSON):\n" + draft.model_dump_json(indent=1))
+    try:
+        edited = LetterPlan.model_validate(_call(llm, system, user, letter_schema(), settings))
+    except Exception as exc:  # noqa: BLE001 - the draft already passed the gate; keep it
+        from ..llm.claude_code import BackendUnavailable
+        if isinstance(exc, BackendUnavailable):
+            raise
+        return draft, [f"letter edit pass failed ({type(exc).__name__}), kept the first draft"]
+    notes = enforce_letter(edited, profile)
+    if not any(p.kind == "evidence" for p in edited.paragraphs) and any(p.kind == "evidence" for p in draft.paragraphs):
+        return draft, notes + ["letter edit pass lost the evidence paragraphs, kept the first draft"]
+    edited.flags = list(dict.fromkeys(draft.flags + edited.flags))
+    return edited, [f"edit pass: {n}" for n in notes]

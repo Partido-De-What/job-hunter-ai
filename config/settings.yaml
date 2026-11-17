@@ -86,6 +86,7 @@ llm:
   max_retries: 3
   refusal_fallback: true         # api backend: on a policy refusal the API retries on another model
   max_failures_per_job: 2        # stop retrying a job whose evaluation keeps failing
+  letter_revision: true          # cover letters get a second "editor" pass for natural wording (+1 AI call)
   # USD per 1M tokens (Anthropic list prices, 2026-11). Cache writes cost 1.25x input.
   prices:
     claude-opus-5-5:   {input: 4.00, output: 20.00, cache_read: 0.20}

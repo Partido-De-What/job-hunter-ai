@@ -278,10 +278,21 @@ vjh docs generate 44
 - **Your most relevant experience for each job gets the detail.** Other roles are kept short but listed, and everything stays newest first.
 - Your private notes are never used.
 
+**Natural-sounding cover letters:**
+
+- **One thread:** the letter tells one or two experiences in depth, as a short story of what you did and why it matters to this team, instead of a tour of everything. The CV carries the full list of skills.
+- **Key terms:** the 6 most important skills from the ad that you really have are woven into those sentences, in the ad's wording, each once. They never appear as a list.
+- **Plain, formal style:**
+  - varied sentences, with few starting with "I";
+  - no echoing the ad ("Your ad asks for…");
+  - no stock or machine-sounding phrases ("I am excited", "proven track record", "delve", "mit großem Interesse", …).
+- **Editing pass:** a second AI call edits the draft for natural wording without adding facts, and the evidence check runs again. Switch it off with `letter_revision: false` in `config\settings.yaml`, which saves one AI call per letter.
+- **Style warnings:** the QA report warns about leftover stock phrases, ad echoes, list-like sentences, too many "I" openings, and letters that leave out most key terms.
+
 **Quality check.** A document is marked `qa_passed` only if both checks find no errors:
 
 - **Python** checks language levels against your profile, pronouns, employers and dates, and page limits.
-- **An independent AI reviewer** looks for unsupported claims, grammar, ATS problems, CV/letter consistency, and wording that is hard to defend.
+- **An independent AI reviewer** looks for unsupported claims, grammar, ATS problems, CV/letter consistency, wording that sounds machine-written or keyword-stuffed, and wording that is hard to defend.
 
 Files go into `data\documents\<job>-<employer>\` as `.docx`, `.pdf` and `_qa.json`, named after you, the document and the job, e.g. `Anna_Muster_CV_Lab_Technician.docx` (German: `…_Lebenslauf_…`; letters: `…_Cover_Letter_…` / `…_Anschreiben_…`). New runs add `_v2`, `_v3`, …; nothing is overwritten.
 

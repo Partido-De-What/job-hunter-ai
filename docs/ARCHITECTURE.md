@@ -47,7 +47,8 @@ The SQLite database is at `%LOCALAPPDATA%/job-hunter/vjh.db` by default (outside
 
 - The AI returns a plan (CV: summary, focus roles, bullets per role/degree, skill groups, keywords, flags; letter: typed paragraphs). Python renders facts from the profile and enforces: evidence on every claim, focus roles detailed (≤6 bullets) and others condensed (≤2), reverse-chronological order.
 - CV header follows `candidate.cv_conventions` (photo, date of birth, nationality, work permit, driving licence). Labels in EN/DE/IT. DOCX via python-docx, PDF via Microsoft Word (docx2pdf); letters are re-laid out to fit one page.
-- QA: deterministic checks (language levels against the profile, pronouns, employers and dates, employer named, page limits, placeholders, emphasis) plus an independent AI reviewer. `qa_passed` only without errors. Every run creates a new version; approval is manual.
+- QA: deterministic checks (language levels against the profile, pronouns, employers and dates, employer named, page limits, placeholders, emphasis) plus an independent AI reviewer. `qa_passed` only without errors.
+- Natural letters: draft → edit (Self-Refine, Madaan et al. 2023). The writer drafts with evidence IDs and an `angle` (one thread), and a separate editor call rewrites only the wording. The evidence gate runs again, and the draft is kept if the edit fails (`llm.letter_revision`). Style rules come as positive guidance in `<letter_style>`, with a short ban list of words over-represented in LLM text (Kobak et al. 2025; Antislop, ICLR 2026). Up to 6 matched skills go into the letter in context; the CV carries the full keyword set. `letter_style_issues` adds warnings only. Every run creates a new version; approval is manual.
 
 ## 7. Tracking, dashboard, automation
 

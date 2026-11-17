@@ -60,7 +60,8 @@ class FakeClaude:
                 "skills": [{"group": "Laboratory", "items": [{"text": "PCR", "evidence_ids": ["EV-LAB-001"]}]}],
                 "keywords_used": ["PCR"], "flags": []}
         elif "paragraphs" in props:
-            kind, ans = "letter", {
+            kind = "letter_edit" if "editor of the cover letter" in system else "letter"
+            ans = {
                 "subject": "Application: Laboratory Technician", "salutation": "Dear Hiring Team,",
                 "sign_off": "Kind regards", "flags": [], "paragraphs": [
                     {"kind": "opening", "text": "I am applying to Plant Lab GmbH as a laboratory technician.",
@@ -133,7 +134,7 @@ def test_whole_chain(project, capsys):
     assert jobs["Laboratory Technician (PCR)"].status == "evaluated"
     assert jobs["Koch / Köchin"].status == "filtered_out"                 # never sent to the AI
     assert claude.calls.count("evaluate") == 1
-    assert sorted(claude.calls) == ["cv", "evaluate", "letter", "qa", "qa"]   # every AI call was the fake
+    assert sorted(claude.calls) == ["cv", "evaluate", "letter", "letter_edit", "qa", "qa"]   # every AI call was the fake
     ev = rows(JobEvaluationRow)[0]
     assert ev.overall_score == 90 and ev.recommendation == "apply"
     docs = rows(GeneratedDocumentRow)

@@ -132,6 +132,7 @@ def test_private_notes_never_reach_ai_or_documents(profile_data, tmp_path):
     prof = MasterProfile.model_validate(profile_data)
     prompts = [build_system_prompt(prof, SETTINGS), QA_INSTRUCTIONS + render_profile(prof, SETTINGS)]
     prompts += [build_writer_system(prof, SETTINGS, k, lang) for k in ("cv", "letter") for lang in ("en", "de")]
+    prompts += [build_writer_system(prof, SETTINGS, "letter", "en", revision=True)]
     for p in prompts:
         assert "PRIVATE-MARKER" not in p and "9,999" not in p
     plan = cv_plan()
@@ -247,7 +248,7 @@ def fake_pdf(pages_seq):
 
 def test_generate_writes_files_db_rows_and_qa(env):
     engine, profile, out = env
-    llm = FakeLLM([cv_reply(), qa_reply(), letter_reply(), qa_reply()])
+    llm = FakeLLM([cv_reply(), qa_reply(), letter_reply(), letter_reply(), qa_reply()])   # letter: draft + edit
     convert, count = fake_pdf([2, 2, 1])          # CV 2 pages; letter 2 then 1 after tightening
     results = generate_for_job(engine, SETTINGS, profile, HOME, llm, job_id=1, langs=["en"],
                                kinds=["cv", "letter"], out_root=out, photo=None, convert_pdf=convert,
@@ -312,3 +313,84 @@ def test_approve_blocked_when_qa_failed(fake_project, capsys):
     assert main(["docs", "approve", "1"]) == 1
     assert main(["docs", "approve", "1", "--override"]) == 0
     assert "Nothing was sent" in capsys.readouterr().out
+
+
+# ---------------- natural cover letters: edit pass and style checks ----------------
+
+def _job():
+    from vjh.db.tables import JobRow
+    return JobRow(id=1, title="Lab Technician", employer="Saat GmbH", location="Wien", source="Test",
+                  description="PCR genotyping in our lab", url=None)
+
+
+EVAL = {"technical_skill_matches": ["PCR / qPCR", "Genotyping", "PCR / qPCR", "Sterile technique"],
+        "best_matching_experience": ["Lab work"], "missing_skills": ["HPLC"]}
+
+
+def test_letter_gets_key_terms_and_an_edit_pass(profile):
+    from vjh.documents.writer import letter_key_terms, write_plan
+    assert letter_key_terms(EVAL) == ["PCR / qPCR", "Genotyping", "Sterile technique"]       # deduplicated
+    edited = letter_reply() | {"angle": "PCR work", "paragraphs": [
+        {"kind": "opening", "text": "Genotyping wheat lines by PCR was my daily work.", "evidence_ids": ["EV-LAB-001"]},
+        {"kind": "evidence", "text": "Invented claim.", "evidence_ids": ["EV-NOPE"]},
+        {"kind": "motivation", "text": "Your breeding work interests me.", "evidence_ids": []}]}
+    llm = FakeLLM([letter_reply(), edited])
+    users = []
+    orig = llm.complete_json
+    llm.complete_json = lambda **kw: (users.append(kw["user"]), orig(**kw))[1]
+    plan, notes = write_plan(llm, kind="letter", lang="en", job=_job(), evaluation=EVAL, cv_profile=None,
+                             profile=profile, settings=SETTINGS)
+    assert "KEY TERMS" in users[0] and "Genotyping" in users[0]
+    assert "editor of the cover letter" in llm.systems[1] and "DRAFT TO EDIT" in users[1]
+    assert "<letter_style>" in llm.systems[0] and "delve" in llm.systems[0]
+    assert plan.paragraphs[0].text.startswith("Genotyping")             # the edited wording is used
+    assert all(p.text != "Invented claim." for p in plan.paragraphs)      # evidence gate runs again
+    assert any(n.startswith("edit pass:") for n in notes)
+
+
+def test_letter_edit_failure_keeps_checked_draft(profile):
+    from vjh.documents.writer import write_plan
+    llm = FakeLLM([letter_reply(), "not a letter"])
+    plan, notes = write_plan(llm, kind="letter", lang="en", job=_job(), evaluation=EVAL, cv_profile=None,
+                             profile=profile, settings=SETTINGS)
+    assert plan.paragraphs[0].text == "I am applying to Saat GmbH as a lab technician."
+    assert any("kept the first draft" in n for n in notes)
+
+
+def test_letter_edit_pass_can_be_switched_off(profile):
+    from vjh.documents.writer import write_plan
+    settings = SETTINGS.model_copy(deep=True)
+    settings.llm.letter_revision = False
+    llm = FakeLLM([letter_reply()])
+    write_plan(llm, kind="letter", lang="en", job=_job(), evaluation=None, cv_profile=None, profile=profile,
+               settings=settings)
+    assert len(llm.systems) == 1
+
+
+MECHANICAL = """Dear Hiring Team,
+I am applying for the position of Technical Assistant in your Quality Control team in Vienna today.
+Your ad asks for SOP compliance and accurate, timely documentation in a regulated laboratory setting.
+I have calibrated, cleaned and maintained equipment such as pH meters, autoclaves, thermocyclers and balances.
+I followed safety and quality procedures and kept accurate documentation of all my experiments.
+I also hold an MSc in Biotechnology and I am excited about this unique opportunity to grow.
+I would welcome the chance to discuss the position at an interview with your team soon.
+Kind regards"""
+
+NATURAL = """Dear Hiring Team,
+For two years my mornings at a soil laboratory started with soil and water samples that had to be tested before noon.
+That routine taught me how much a quality control result depends on careful records and a calibrated meter.
+Genotyping wheat lines by PCR at a seed company added the molecular side, since every call fed a selection decision.
+Your vaccine release testing would let me bring both habits to work where the stakes are higher still.
+Because I already live in Vienna, I could start at short notice and would be glad to meet you.
+Kind regards"""
+
+
+def test_letter_style_check_flags_mechanical_wording():
+    from vjh.documents.qa import letter_style_issues
+    texts = [i.text for i in letter_style_issues(MECHANICAL, None, ["PCR", "Genotyping"])]
+    assert any("Echoes the job ad" in t for t in texts)
+    assert any("machine-sounding" in t and "unique opportunity" in t for t in texts)
+    assert any("start with 'I'" in t for t in texts)
+    assert any("list of tools" in t for t in texts)
+    assert any("mentions only 0 of 2" in t for t in texts)
+    assert letter_style_issues(NATURAL, None, ["PCR", "Genotyping", "quality control"]) == []
