@@ -168,6 +168,13 @@ def letter_style_issues(text: str, evaluation: dict | None, key_terms: list[str]
         if joins >= 5 and len(s.split()) < 45:
             out.append(Issue("warning", "language_quality", f"Sentence reads like a list of tools: '{s[:90]}…'",
                              "Keep one or two items and say what they were used for."))
+    for m in sorted(set(re.findall(r"[\w-]+ / [\w-]+", body))):
+        out.append(Issue("warning", "language_quality", f"Label pasted into the text: '{m}'",
+                         "Write it as you would say it ('PCR and RT-PCR', 'Excel')."))
+    words = sum(len(p.split()) for p in text.split("\n") if len(p.split()) >= 12)
+    if words > 310:
+        out.append(Issue("warning", "other", f"The letter body has {words} words; aim for 230-300",
+                         "Cut the weakest detail."))
     if body.count("—") + body.count(";") >= 2:
         out.append(Issue("warning", "language_quality", "Several dashes or semicolons: a typical machine-writing habit",
                          "Use full stops and commas."))

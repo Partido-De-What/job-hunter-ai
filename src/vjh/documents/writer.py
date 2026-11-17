@@ -68,9 +68,12 @@ on one A4 page together with the address block, so stay within the limit.
      heading. No claims about the candidate's past here; no generic praise.
   "closing": short; availability for an interview; if the ad needs a language the candidate is
      still learning, mention it honestly at the real level from the profile.
-- KEY TERMS: weave the KEY TERMS listed in the request into sentences about real work, each in the
-  ad's own wording, each once, wherever the evidence supports it. A term belongs inside a sentence
-  that says what was done with it; never in a list of three or more tools.
+- KEY TERMS: weave the KEY TERMS listed in the request into sentences about real work, each once,
+  wherever the evidence supports it. They are labels for skills, not text to paste: keep the
+  key word itself but say it the way a person would in a sentence, e.g. "PCR / RT-PCR" ->
+  "PCR and RT-PCR", "MS Office / Excel" -> "Excel", "QC procedures and documentation" ->
+  "followed the QC procedures and documented every result". A term belongs inside a sentence that
+  says what was done with it; never in a list of three or more tools, never with a slash.
 - subject: e.g. "Application: <position>" in the document language.
 - sign_off: e.g. "Kind regards" / "Mit freundlichen Grüßen" / "Cordiali saluti" (software adds the name).
 - keywords_used: the KEY TERMS you actually used.
@@ -100,7 +103,7 @@ behind the letter who knows what they did and why it matters for this job.
   "I am writing to express", "I am confident that", "not only ... but also",
   "mit großem Interesse", "hiermit bewerbe ich mich", "spannende Herausforderung",
   "Teamplayer", "dynamisches Team", "wertvolle Erfahrungen sammeln", "ich bin überzeugt, dass".
-- Punctuation: no em dashes and no semicolons in the letter; use full stops and commas.
+- Punctuation: no em dashes, no semicolons and no slashes in the letter; use full stops and commas.
 - German letters use the "Sie" form.
 </letter_style>
 """
@@ -114,7 +117,8 @@ reads as if a thoughtful person wrote it in one go, following <letter_style>. Ke
 - the salutation, subject and sign_off unless they break a rule;
 - the KEY TERMS the draft already uses, in the ad's wording (add missing ones only where the
   evidence supports them);
-- the length limit of 230-300 words.
+- the length limit of 230-300 words: count them, and if the draft is longer, cut the weakest
+  detail rather than squeezing sentences.
 Fix: list-like sentences, repeated sentence openings, ad-echo phrases, banned words, generic
 motivation, and anything that sounds like a form being filled in. Return the full letter.
 """
@@ -201,5 +205,5 @@ def revise_letter(llm: LLM, draft: LetterPlan, *, lang: str, job, evaluation: di
     notes = enforce_letter(edited, profile)
     if not any(p.kind == "evidence" for p in edited.paragraphs) and any(p.kind == "evidence" for p in draft.paragraphs):
         return draft, notes + ["letter edit pass lost the evidence paragraphs, kept the first draft"]
-    edited.flags = list(dict.fromkeys(draft.flags + edited.flags))
+    edited.flags = edited.flags or draft.flags        # the editor's flags describe the final wording
     return edited, [f"edit pass: {n}" for n in notes]

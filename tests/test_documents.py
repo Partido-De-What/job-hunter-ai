@@ -394,3 +394,14 @@ def test_letter_style_check_flags_mechanical_wording():
     assert any("list of tools" in t for t in texts)
     assert any("mentions only 0 of 2" in t for t in texts)
     assert letter_style_issues(NATURAL, None, ["PCR", "Genotyping", "quality control"]) == []
+
+
+def test_letter_style_check_flags_pasted_labels_and_length():
+    from vjh.documents.qa import letter_style_issues
+    pasted = ("Dear Hiring Team,\nIn the lab I used PCR / RT-PCR every week for genotyping, and my MS Office / Excel "
+              "skills are advanced because every result went into a spreadsheet.\nKind regards")
+    texts = [i.text for i in letter_style_issues(pasted, None, [])]
+    assert any("'PCR / RT-PCR'" in t for t in texts) and any("'Office / Excel'" in t for t in texts)
+    long = "Dear Hiring Team,\n" + "\n".join(["Careful records made every sample traceable for the clients. " * 8] * 6)
+    assert any("words; aim for 230-300" in t for t in [i.text for i in letter_style_issues(long, None, [])])
+    assert letter_style_issues(NATURAL, None, []) == []
