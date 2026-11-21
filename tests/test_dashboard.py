@@ -182,6 +182,42 @@ def test_quick_actions_keep_the_tracker_rules(db):
     assert actions.reason_text("Wrong field", " too chemical ") == "Wrong field: too chemical"
 
 
+def test_applied_jobs_are_marked_everywhere(db):
+    """Applied stays visible after later steps (interview, rejection) and carries the sent date."""
+    from vjh.automation.report import build_daily_report, render_html
+    from vjh.tracker.service import set_status
+    with Session(db) as s, s.begin():
+        set_status(s, 1, "applied", when=date(2026, 11, 18), now=NOW)
+        set_status(s, 2, "applied", when=date(2026, 11, 17), now=NOW)
+        set_status(s, 2, "rejected", now=NOW)                            # rejected later: still applied
+        set_status(s, 3, "under_review", now=NOW)                        # tracked, never sent
+    with Session(db) as s:
+        df = data.jobs_frame(s)
+        detail = data.job_detail(s, 1)
+        rep = build_daily_report(s, NOW, load_config(Path(__file__).resolve().parents[1]).settings)
+    marks = dict(zip(df["id"], df["applied"], strict=True))
+    assert marks == {1: True, 2: True, 3: False}
+    assert data.applied_label(True, date(2026, 11, 18)) == "✅ Applied 18.11.2026"
+    assert data.applied_label(True, None) == "✅ Applied" and data.applied_label(False, None) == ""
+    assert detail["applied"] and detail["applied_on"] == date(2026, 11, 18)
+    assert list(data.filter_jobs(df, data.JobFilters(hide_applied=True))["id"]) == [3]
+    html = render_html(rep)
+    assert "✅ Applied 18.11.2026" in html and "Posted" in html
+
+
+def test_jobs_sort_by_posting_date(db):
+    with Session(db) as s, s.begin():
+        s.get(JobRow, 2).published_at = None                             # source gave no date
+    with Session(db) as s:
+        df = data.jobs_frame(s)
+    assert list(data.sort_jobs(df, "Newest posting first")["id"]) == [3, 1, 2]   # no date goes last
+    assert list(data.sort_jobs(df, "Oldest posting first")["id"]) == [1, 3, 2]
+    assert list(data.sort_jobs(df, "Best score first")["id"])[:2] == [1, 2]
+    with Session(db) as s:
+        apps = data.applications_frame(s)
+    assert "published" in apps.columns
+
+
 def test_shortcut_install_uses_powershell_and_draws_icon(tmp_path, monkeypatch):
     import sys
 

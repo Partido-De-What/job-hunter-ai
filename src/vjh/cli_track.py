@@ -188,7 +188,8 @@ def cmd_show(engine, job_id: int) -> int:
             print("  No application record yet.")
             return 0
         print(f"\n  Status: {app.status.upper()}")
-        for label, val in (("Discovered", job.discovered_at.date()), ("Deadline", job.deadline),
+        for label, val in (("Posted", job.published_at), ("Discovered", job.discovered_at.date()),
+                           ("Deadline", job.deadline),
                            ("Documents prepared", app.date_prepared), ("Approved", app.date_approved),
                            ("Applied", app.date_submitted), ("Follow-up", app.follow_up_date),
                            ("Interview", app.interview_date), ("Employer response", app.employer_response),

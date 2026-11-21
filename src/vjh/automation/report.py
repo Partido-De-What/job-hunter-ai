@@ -10,7 +10,7 @@ from jinja2 import Environment, select_autoescape
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..dashboard.data import salary_text, sources_frame
+from ..dashboard.data import applied_jobs, applied_label, salary_text, sources_frame
 from ..db.tables import ApiUsageRow, GeneratedDocumentRow, JobEvaluationRow, JobRow, RunRow
 from ..scoring.red_flags import job_flags
 from ..tracker.service import due_items
@@ -70,6 +70,7 @@ def build_daily_report(session: Session, now: datetime, settings, steps: list[St
     rep.new_by_source = dict(session.execute(
         select(JobRow.source, func.count()).where(JobRow.discovered_at >= since).group_by(JobRow.source)).all())
     seen: set[int] = set()
+    applied = applied_jobs(session)
     for ev in session.scalars(select(JobEvaluationRow).where(JobEvaluationRow.evaluated_at >= since)
                               .order_by(JobEvaluationRow.overall_score.desc())):
         if ev.job_id in seen:
@@ -82,6 +83,8 @@ def build_daily_report(session: Session, now: datetime, settings, steps: list[St
                               "recommendation": ev.recommendation, "ineligible": ev.potentially_ineligible,
                               "title": j.title, "employer": j.employer, "location": j.location or "",
                               "salary": salary_text(j.salary), "deadline": j.deadline,
+                              "posted": j.published_at,
+                              "applied": applied_label(j.id in applied, applied.get(j.id)),
                               "flags": [f.text.split(":")[0] for f in job_flags(session, j, now.date())
                                         if f.level == "warn"],
                               # untrusted: only plain web links become clickable
@@ -120,12 +123,13 @@ TEMPLATE = """<!doctype html>
 {% for s in r.steps %}<tr><td>{{ s.name }}</td><td class="{{ 'ok' if s.ok else 'bad' }}">{{ 'OK' if s.ok else 'FAILED' }} {{ s.detail }}</td></tr>{% endfor %}</table>{% endif %}
 
 <h2>Good matches ({{ r.top_matches|length }})</h2>
-{% if r.top_matches %}<table><tr><th>#</th><th>Score</th><th>Job</th><th>Location</th><th>Salary</th><th>Deadline</th><th>AI says</th></tr>
+{% if r.top_matches %}<table><tr><th>#</th><th>Score</th><th>Job</th><th>Location</th><th>Salary</th><th>Posted</th><th>Deadline</th><th>AI says</th></tr>
 {% for e in r.top_matches %}<tr><td>{{ e.id }}</td><td class="score">{{ '%.0f'|format(e.score) }}</td>
 <td>{% if e.url %}<a href="{{ e.url }}">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}<br><span class="muted">{{ e.employer }}</span>
+{% if e.applied %}<br><span class="ok">{{ e.applied }}</span>{% endif %}
 {% if e.ineligible %}<br><span class="warn">⚠ a mandatory requirement is not met</span>{% endif %}
 {% for f in e.flags %}<br><span class="warn">⚠ {{ f }}</span>{% endfor %}</td>
-<td>{{ e.location }}</td><td>{{ e.salary or '-' }}</td><td>{{ e.deadline or '-' }}</td><td>{{ e.recommendation }}</td></tr>{% endfor %}</table>
+<td>{{ e.location }}</td><td>{{ e.salary or '-' }}</td><td>{{ e.posted.strftime('%d.%m.%Y') if e.posted else '-' }}</td><td>{{ e.deadline or '-' }}</td><td>{{ e.recommendation }}</td></tr>{% endfor %}</table>
 {% else %}<p>No new jobs above the recommendation threshold.</p>{% endif %}
 {% set others = r.evaluated|length - r.top_matches|length %}
 {% if others > 0 %}<p class="muted">{{ others }} other evaluated job(s) scored lower - see the dashboard.</p>{% endif %}

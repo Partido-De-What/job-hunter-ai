@@ -185,15 +185,21 @@ def _job_table(df: pd.DataFrame, key: str) -> None:
     if df.empty:
         st.info("No jobs match.")
         return
-    view = df[["id", "score", "category", "recommendation", "ineligible", "title", "employer", "location",
-               "application", "salary", "deadline", "source"]].copy()
+    view = df[["id", "applied", "score", "category", "recommendation", "ineligible", "title", "employer",
+               "location", "application", "published", "salary", "deadline", "source"]].copy()
+    view["applied"] = [data.applied_label(a, d) for a, d in zip(df["applied"], df["applied_on"], strict=True)]
     view["category"] = view["category"].map(lambda c: CATEGORY_LABEL.get(c, c))
     view["ineligible"] = view["ineligible"].map(lambda b: "⚠️ mandatory not met" if b else "")
     view["title"] = [data.title_link(u, t, e) for u, t, e in zip(df["url"], df["title"], df["employer"], strict=True)]
+    for col in ("published", "deadline"):               # real dates, so clicking the header sorts by date
+        view[col] = pd.to_datetime(view[col], errors="coerce")
     event = st.dataframe(view, hide_index=True, on_select="rerun", selection_mode="multi-row", key=f"{key}_tbl",
                          column_config={"score": st.column_config.ProgressColumn("score", min_value=0,
                                                                                  max_value=100, format="%.0f"),
+                                        "applied": APPLIED_COL,
                                         "ineligible": st.column_config.TextColumn("eligibility"),
+                                        "published": POSTED_COL,
+                                        "deadline": st.column_config.DateColumn("deadline", format="DD.MM.YYYY"),
                                         "title": TITLE_LINK})
     picked = [int(view.iloc[i]["id"]) for i in event.selection.rows] if event else []
     _quick_actions(picked, key)
@@ -202,6 +208,13 @@ def _job_table(df: pd.DataFrame, key: str) -> None:
 TITLE_LINK = st.column_config.LinkColumn(
     "title", display_text=data.TITLE_LINK_DISPLAY,
     help="Click a title to open the job ad (where you apply). 🔎 = no link stored: a web search instead.")
+APPLIED_COL = st.column_config.TextColumn(
+    "applied", help="✅ = you marked this job as applied (with the date you sent it). Stays after an interview, "
+                    "offer or rejection.")
+POSTED_COL = st.column_config.DateColumn(
+    "posted", format="DD.MM.YYYY",
+    help="Date the job was published, as given by the source. Empty = the source did not say. "
+         "Click the column header to sort by it.")
 
 
 def _quick_actions(picked: list[int], key: str) -> None:
@@ -273,12 +286,17 @@ def page_jobs() -> None:
         min_salary = e.number_input("Minimum advertised annual salary (EUR, only jobs that state one)",
                                     min_value=0, value=0, step=1000)
         since = f.date_input("Published since", value=None)
+        sort = f.selectbox("Sort by", list(data.JOB_SORTS), key="jobs_sort",
+                           help="Jobs whose source gave no posting date go to the end.")
+        hide_applied = f.checkbox("Hide jobs I already applied to", value=False)
     filt = data.JobFilters(min_score=smin, max_score=smax, include_unscored=unscored, text=text,
                            employer=employer, location=location, categories=tuple(cats), languages=tuple(langs),
                            job_statuses=tuple(job_statuses), applications=tuple(apps),
-                           min_salary=float(min_salary) if min_salary else None, published_since=since)
-    out = data.filter_jobs(df, filt)
-    st.caption(f"{len(out)} of {len(df)} jobs")
+                           min_salary=float(min_salary) if min_salary else None, published_since=since,
+                           hide_applied=hide_applied)
+    out = data.sort_jobs(data.filter_jobs(df, filt), sort)
+    st.caption(f"{len(out)} of {len(df)} jobs · {int(out['applied'].sum())} applied · "
+               f"{int(out['published'].isna().sum())} without a posting date")
     _job_table(out, key="jobs")
 
 
@@ -295,6 +313,9 @@ def page_job_details() -> None:
         return
     j, ev, ai, app = d["job"], d["evaluation"], d["ai"], d["application"]
     st.subheader(f"#{j.id} {j.title}")
+    if d["applied"]:
+        st.success(data.applied_label(True, d["applied_on"]).replace("✅ Applied", "✅ You applied for this job")
+                   + (f" · current status: {app.status.replace('_', ' ')}" if app else ""))
     st.markdown(f"**{j.employer}** · {j.location or 'location not stated'} · source: {j.source} · "
                 + data.md_link("open the ad ↗" if data.is_web_url(j.url) else "search for the ad 🔎",
                                j.url, j.employer, search_title=j.title))
@@ -309,11 +330,12 @@ def page_job_details() -> None:
     c[0].metric("Score", f"{ev.overall_score:.0f}" if ev else "-", border=True)
     summary = (ev.explanation or "") if ev else "Not evaluated yet."
     c[1].markdown(summary if len(summary) <= 420 else summary[:420].rsplit(" ", 1)[0] + " …")
-    info = st.columns(4)
+    info = st.columns(5)
     info[0].write(f"**Salary (as advertised):** {d['salary'] or 'not stated'}")
     info[1].write("**Commute:** unavailable (no routing service chosen)")
-    info[2].write(f"**Deadline:** {j.deadline or 'not stated'}")
-    info[3].write(f"**Ad language:** {d['language']}")
+    info[2].write(f"**Posted:** {f'{j.published_at:%d.%m.%Y}' if j.published_at else 'not stated'}")
+    info[3].write(f"**Deadline:** {f'{j.deadline:%d.%m.%Y}' if j.deadline else 'not stated'}")
+    info[4].write(f"**Ad language:** {d['language']}")
     if j.status != "evaluated" and j.filter_reason:
         st.info(f"Stage 1: {j.status} - {j.filter_reason}")
     _red_flags(j)
@@ -709,9 +731,15 @@ def page_applications() -> None:
         return
     table = df.drop(columns=["url"]).assign(
         title=[data.title_link(u, t, e) for u, t, e in zip(df["url"], df["title"], df["employer"], strict=True)])
+    for col in ("published", "deadline", "applied", "follow_up"):
+        table[col] = pd.to_datetime(table[col], errors="coerce")
     event = st.dataframe(table, hide_index=True, on_select="rerun", selection_mode="multi-row", key="apps_tbl",
                          column_config={"title": TITLE_LINK, "score": st.column_config.ProgressColumn("score", min_value=0,
-                                                                                 max_value=100, format="%.0f")})
+                                                                                 max_value=100, format="%.0f"),
+                                        "published": POSTED_COL,
+                                        "applied": st.column_config.DateColumn("✅ applied on", format="DD.MM.YYYY"),
+                                        "deadline": st.column_config.DateColumn("deadline", format="DD.MM.YYYY"),
+                                        "follow_up": st.column_config.DateColumn("follow up", format="DD.MM.YYYY")})
     _quick_actions([int(df.iloc[i]["job"]) for i in event.selection.rows] if event else [], "apps")
 
 
@@ -733,8 +761,10 @@ def _board(df: pd.DataFrame) -> None:
                 bits = [r.employer[:35]]
                 if pd.notna(r.score):
                     bits.append(f"score {r.score:.0f}")
+                if pd.notna(r.published):
+                    bits.append(f"posted {r.published:%d.%m}")
                 if pd.notna(r.applied):
-                    bits.append(f"sent {r.applied}")
+                    bits.append(f"✅ sent {r.applied:%d.%m}")
                 if pd.notna(r.follow_up) and r.status == "applied":
                     bits.append(f"follow up {r.follow_up}")
                 if pd.notna(r.interview):

@@ -397,6 +397,8 @@ Settings are saved into `config\settings.yaml` with its explanations kept, and c
 
 **Interview and follow-up:** on a job's page, *Interview preparation* writes a private Word file (`..._Interview_Prep_<job>.docx`, in the job's document folder): likely questions with answer outlines built only from your real experience (each shows what it is based on), honest answers for your gaps, questions to ask, German tips at your real level and a checklist. *Email drafts* writes a short follow-up (no answer yet) or thank-you (after the interview) to copy into your own email; nothing is sent. Each uses one AI call from your Claude plan.
 
+**Applied jobs** are marked **✅ Applied 18.11.2026** (the date you sent it) in every table, on the job's page and in the daily email. The mark stays after an interview, offer or rejection. The **posted** column is the date the job was published; it is empty when the source did not give one (those jobs go to the end when you sort by date).
+
 **Job titles are links:** click a title in any table or card to open the job ad (where you apply). A 🔎 in front means no link is stored, so it opens a web search for that job instead.
 
 **Two people on one computer:** use two separate copies of this folder. Each copy needs its own `dashboard: port` (e.g. 8501 and 8502) and `dashboard: title` (this also names the Desktop icon), its own `database: path` and its own `automation: task_name` in `config/settings.yaml`.
@@ -407,7 +409,7 @@ Pages:
 
 - **Overview**, with this week's application goal
 - **Progress**: applications this week vs. your goal (`progress: weekly_application_goal` in `config/settings.yaml`), weeks in a row on goal, response and interview rates, found → recommended → applied → interview → offer, the last 12 weeks
-- **Jobs**, with filters
+- **Jobs**, with filters, **Sort by** (posting date, date found, deadline, score) and **Hide jobs I already applied to**
 - **Job details**: eligibility, score, skills, salary, documents (open PDF or Word, download, open folder, approve; a "documents ready" badge jumps there), warning signs about the ad, interview preparation, follow-up and thank-you email drafts, status, feedback
 - **Applications**: a board (To review → Documents ready → Applied → Interview → Offer) or a table with quick actions
 - **Documents**: QA reports, downloads, approve or reject

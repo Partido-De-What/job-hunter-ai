@@ -86,20 +86,55 @@ def _latest_evals(session: Session) -> dict[int, JobEvaluationRow]:
     return out
 
 
-JOB_COLUMNS = ["id", "title", "employer", "location", "source", "job_status", "application", "score",
-               "category", "recommendation", "eligibility", "ineligible", "language", "salary",
-               "salary_annual_min", "published", "discovered", "deadline", "filter_reason", "url"]
+JOB_COLUMNS = ["id", "title", "employer", "location", "source", "job_status", "application", "applied",
+               "applied_on", "score", "category", "recommendation", "eligibility", "ineligible", "language",
+               "salary", "salary_annual_min", "published", "discovered", "deadline", "filter_reason", "url"]
+
+
+def applied_jobs(session: Session) -> dict[int, date | None]:
+    """Jobs the user has sent an application for, with the date it was sent (None if not recorded).
+    A job stays 'applied' after a later interview, offer, rejection or archiving (from the history)."""
+    sent = {a.job_id: a.date_submitted for a in session.scalars(select(ApplicationRow))}
+    return {job: sent.get(job) for job, reached in _reached(session).items() if "applied" in reached}
+
+
+def applied_label(applied: bool, when: date | None) -> str:
+    """'✅ Applied 18.11.2026' / '✅ Applied' / ''. One wording everywhere (tables, report, details)."""
+    if not applied:
+        return ""
+    return "✅ Applied" + (f" {when:%d.%m.%Y}" if when is not None and not pd.isna(when) else "")
+
+
+# Sort orders for job tables: label -> (column, ascending). Jobs without that date go last.
+JOB_SORTS = {
+    "Best score first": ("score", False),
+    "Newest posting first": ("published", False),
+    "Oldest posting first": ("published", True),
+    "Newest found first": ("discovered", False),
+    "Deadline soonest first": ("deadline", True),
+}
+
+
+def sort_jobs(df: pd.DataFrame, how: str) -> pd.DataFrame:
+    col, asc = JOB_SORTS[how]
+    if col == "score":
+        return df.sort_values(["score", "discovered"], ascending=[False, False], na_position="last")
+    key = pd.to_datetime(df[col], errors="coerce")
+    order = key.sort_values(ascending=asc, na_position="last", kind="stable").index
+    return df.loc[order]
 
 
 def jobs_frame(session: Session) -> pd.DataFrame:
     evals = _latest_evals(session)
     apps = {a.job_id: a.status for a in session.scalars(select(ApplicationRow))}
+    applied = applied_jobs(session)
     rows = []
     for j in session.scalars(select(JobRow)):
         ev = evals.get(j.id)
         rows.append({
             "id": j.id, "title": j.title, "employer": j.employer, "location": j.location or "",
             "source": j.source, "job_status": j.status, "application": apps.get(j.id, ""),
+            "applied": j.id in applied, "applied_on": applied.get(j.id),
             "score": ev.overall_score if ev else None, "category": ev.category if ev else "",
             "recommendation": ev.recommendation if ev else "", "eligibility": ev.eligibility_result if ev else "",
             "ineligible": bool(ev.potentially_ineligible) if ev else False,
@@ -126,6 +161,7 @@ class JobFilters:
     applications: tuple[str, ...] = ()
     min_salary: float | None = None    # only jobs with a known annual minimum >= this
     published_since: date | None = None
+    hide_applied: bool = False         # leave out jobs already applied to
 
 
 def filter_jobs(df: pd.DataFrame, f: JobFilters) -> pd.DataFrame:
@@ -153,6 +189,8 @@ def filter_jobs(df: pd.DataFrame, f: JobFilters) -> pd.DataFrame:
         out = out[out["salary_annual_min"].notna() & (out["salary_annual_min"] >= f.min_salary)]
     if f.published_since is not None:
         out = out[out["published"].notna() & (out["published"] >= f.published_since)]
+    if f.hide_applied:
+        out = out[~out["applied"].astype(bool)]
     return out
 
 
@@ -166,7 +204,9 @@ def job_detail(session: Session, job_id: int) -> dict | None:
     docs = list(session.scalars(select(GeneratedDocumentRow).where(GeneratedDocumentRow.job_id == job_id)
                                 .order_by(GeneratedDocumentRow.id)))
     fb = list(session.scalars(select(FeedbackRow).where(FeedbackRow.job_id == job_id)))
+    applied = applied_jobs(session)
     return {
+        "applied": job_id in applied, "applied_on": applied.get(job_id),
         "job": j, "evaluation": ev, "ai": ev.ai_output if ev else None, "application": app,
         "history": history(session, job_id), "documents": docs, "feedback": fb,
         "salary": salary_text(j.salary), "language": j.language or guess_language(j.description),
@@ -191,11 +231,11 @@ def applications_frame(session: Session) -> pd.DataFrame:
         j = session.get(JobRow, a.job_id)
         ev = evals.get(a.job_id)
         rows.append({"job": a.job_id, "status": a.status, "title": j.title, "employer": j.employer,
-                     "score": ev.overall_score if ev else None, "deadline": j.deadline,
-                     "applied": a.date_submitted, "follow_up": a.follow_up_date,
+                     "score": ev.overall_score if ev else None, "published": j.published_at,
+                     "deadline": j.deadline, "applied": a.date_submitted, "follow_up": a.follow_up_date,
                      "interview": a.interview_date, "response": a.employer_response or "", "url": j.url or ""})
-    return pd.DataFrame(rows, columns=["job", "status", "title", "employer", "score", "deadline", "applied",
-                                       "follow_up", "interview", "response", "url"])
+    return pd.DataFrame(rows, columns=["job", "status", "title", "employer", "score", "published", "deadline",
+                                       "applied", "follow_up", "interview", "response", "url"])
 
 
 STALE_DAYS = 2
